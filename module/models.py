@@ -10,6 +10,7 @@ class Model:
         batch_size=4,
         padding_side="left",
     ):
+        self.name = name
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.batch_size = batch_size
@@ -21,6 +22,8 @@ class Model:
             device_map="auto",
             trust_remote_code=True,
         )
+        
+        self.thinking = False
 
         # Load tokenizer
         if padding_side is not None:
@@ -49,6 +52,7 @@ class Model:
                 [{"role": "user", "content": prompt}],
                 tokenize=False,
                 add_generation_prompt=True,
+                **({'enable_thinking': False} if "qwen" in self.name.lower() else {})
             )
             for prompt in prompts
         ]
@@ -91,22 +95,10 @@ class Model:
 if __name__ == "__main__":
     import time
     
-    model = Model(name="meta-llama/Llama-3.2-1B-Instruct", max_tokens=256, temperature=0, padding_side="left")
+    model = Model(name="meta-llama/Llama-3.1-8B-Instruct", max_tokens=256, temperature=0, padding_side="left")
     prompts = [
         "Capital of India in one word?",
         "Capital of USA in one word?",
-        "Capital of UK in one word?",
-        "Capital of Australia in one word?",
-        "Capital of Canada in one word?",
-        "Capital of Germany in one word?",
-        "Capital of France in one word?",
-        "Capital of Japan in one word?",
-        "Capital of China in one word?",
-        "Capital of Russia in one word?",
-        "Capital of Brazil in one word?",
-        "Capital of South Africa in one word?",
-        "Capital of Italy in one word?",
-        "Capital of Spain in one word?",
     ]
 
     responses = model.batch_generate_response(prompts)
