@@ -1,5 +1,6 @@
 from module.utils import get_language_model
 from module.utils import get_dataset
+from module.utils import PromptingStrategy
 
 class Engine:
     def __init__(self, args):

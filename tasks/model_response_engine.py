@@ -2,19 +2,20 @@ import os
 import json
 import copy
 
-from module.utils import parse_llm_response_concepts_and_categories, parse_llm_response_factor_settings, enumerate_interventions
+from module.utils import PromptingStrategy
 
 from tasks.engine import Engine
 
 class ModelResponseEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
+        self.prompting_strategy = PromptingStrategy(args.cot, args.few_shot, False, args.few_shot_prompt_name, False)
         
     def _get_original_responses_batch(self, example_indices):
         prompts = []
         for cnt, example_idx in enumerate(example_indices):            
             basic_prompt = self.dataset.format_prompt_basic(example_idx)
-            qa_prompt = self.dataset.format_prompt_qa(basic_prompt, self.cot, idx=example_idx)
+            qa_prompt = self.dataset.format_prompt_qa(basic_prompt, self.prompting_strategy, idx=example_idx)
             prompts.extend([qa_prompt] * self.n_completions)
             
         if len(prompts) == 0:
@@ -42,7 +43,7 @@ class ModelResponseEngine(Engine):
                 try:
                     answer = self.dataset.extract_answer(
                         response,
-                        self.cot,
+                        self.prompting_strategy,
                         idx=example_idx
                     )
                 except:
@@ -89,7 +90,7 @@ class ModelResponseEngine(Engine):
         for cnt, example_idx in enumerate(example_indices):
             for intervention_file, parsed_counterfactual in zip(example_intervention_files[cnt], example_parsed_counterfactuals[cnt]):
                 intrv_str = intervention_file.split(".")[0].split("_")[1]
-                intervention_prompt = self.dataset.format_prompt_qa_counterfactual(parsed_counterfactual, self.cot, idx=example_idx)
+                intervention_prompt = self.dataset.format_prompt_qa_counterfactual(parsed_counterfactual, self.prompting_strategy, idx=example_idx)
                 prompts.extend([intervention_prompt] * self.n_completions)
                 
         responses = self.model.batch_generate_response(prompts)
@@ -117,7 +118,7 @@ class ModelResponseEngine(Engine):
                     try:
                         answer = self.dataset.extract_answer(
                             response,
-                            self.cot,
+                            self.prompting_strategy,
                             idx=example_idx
                         )
                     except:
