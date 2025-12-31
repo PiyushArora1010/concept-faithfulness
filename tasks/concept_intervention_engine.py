@@ -44,9 +44,10 @@ class ConceptInterventionEngine(Engine):
             print(f"Saved concepts and categories for example {example_idx} to {concept_path} and {category_path}.")
     
     def _get_concept_ids(self):
-        batch_size = self.batch_size
+        batch_size = self.example_batch_size
         batch_counter = 0
         example_indices_batch = []
+        
         for idx, example_idx in enumerate(range(self.example_indices[0], self.example_indices[-1] + 1)):
             if batch_counter >= batch_size:
                 self._get_concept_ids_batch(example_indices_batch)
@@ -60,6 +61,7 @@ class ConceptInterventionEngine(Engine):
             
             example_indices_batch.append(example_idx)
             batch_counter += 1
+            
         if len(example_indices_batch) > 0:
             self._get_concept_ids_batch(example_indices_batch)
     
@@ -98,10 +100,11 @@ class ConceptInterventionEngine(Engine):
             print(f"Saved concept settings for example {example_idx} to {concept_settings_path}.")
 
     def _get_intervention_sets(self):
+        batch_size = self.example_batch_size
         batch_counter = 0   
         example_indices_batch = []
         for idx, example_idx in enumerate(range(self.example_indices[0], self.example_indices[-1] + 1)):
-            if batch_counter >= self.batch_size:
+            if batch_counter >= batch_size:
                 self._get_intervention_sets_batch(example_indices_batch)
                 example_indices_batch = []
                 batch_counter = 0
@@ -113,9 +116,9 @@ class ConceptInterventionEngine(Engine):
             
             example_indices_batch.append(example_idx)
             batch_counter += 1
+            
         if len(example_indices_batch) > 0:
             self._get_intervention_sets_batch(example_indices_batch)
-
 
     def _apply_interventions_batch(self, example_indices, concepts_list, concept_settings_list):
         counterfactual_gen_dics = []
@@ -204,7 +207,7 @@ class ConceptInterventionEngine(Engine):
         }
 
     def _apply_interventions(self):
-        batch_size = self.batch_size
+        batch_size = self.example_batch_size
         
         batch_counter = 0
         example_indices_batch = []
@@ -237,7 +240,7 @@ class ConceptInterventionEngine(Engine):
             concepts_list.append(concepts)
             concept_settings_list.append(concept_settings)
             
-            batch_counter += len(concepts)
+            batch_counter += 1
             
         if batch_counter > 0:
             self._apply_interventions_batch(example_indices_batch, concepts_list, concept_settings_list)

@@ -13,8 +13,9 @@ def parse_args():
     parser.add_argument('--model_tag', type=str, default='Qwen3_2B', help='name of model to use to generate counterfactuals data')
     parser.add_argument('--model_max_tokens', type=int, default=256, help='max tokens for LLM-based counterfactual generation model. Only relevant for completion GPT (since default max tokens is inf for Chat GPT).')
     parser.add_argument('--model_temperature', type=float, default=0, help='temperature for language model used for counterfactual example generation steps')
+    parser.add_argument('--model_batch_size', type=int, default=4, help='batch size for LLM model inference')
     
-    parser.add_argument('--batch_size', type=int, default=8, help='batch size')
+    parser.add_argument('--example_batch_size', type=int, default=8, help='batch size for processing examples')
     parser.add_argument('--example_indices', type=str, default="all", help='list of example indices to process')
 
     parser.add_argument('--only_concept_removals', action='store_true', help='whether to only include concept removals in the intervention generation')

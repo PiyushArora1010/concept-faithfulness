@@ -58,17 +58,17 @@ class ModelResponseEngine(Engine):
                     json.dump(answer_dict, f, indent=4)
 
     def _get_original_responses(self):
-        batch_size = self.batch_size
+        batch_size = self.example_batch_size
         
-        batch_couter = 0
+        batch_counter = 0
         example_indices_batch = []
         
         for idx, example_idx in enumerate(range(self.example_indices[0], self.example_indices[-1] + 1)):
 
-            if batch_couter >= batch_size:
+            if batch_counter >= batch_size:
                 self._get_original_responses_batch(example_indices_batch)
                 example_indices_batch = []
-                batch_couter = 0
+                batch_counter = 0
                 
             if os.path.exists(os.path.join(
                 self.output_dir,
@@ -79,7 +79,7 @@ class ModelResponseEngine(Engine):
                 continue
                 
             example_indices_batch.append(example_idx)
-            batch_couter += self.n_completions
+            batch_counter += 1
             
         if len(example_indices_batch) > 0:
             self._get_original_responses_batch(example_indices_batch)
@@ -133,15 +133,15 @@ class ModelResponseEngine(Engine):
                         json.dump(answer_dict, f, indent=4)
                         
     def _get_counterfactual_responses(self):
-        batch_size = self.batch_size
+        batch_size = self.example_batch_size
         
-        batch_couter = 0
+        batch_counter = 0
         example_indices_batch = []
         example_intervention_files_batch = []
         example_parsed_counterfactuals_batch = []
         
         for idx, example_idx in enumerate(range(self.example_indices[0], self.example_indices[-1] + 1)):
-            if batch_couter >= batch_size:
+            if batch_counter >= batch_size:
                 self._get_counterfactual_responses_batch(
                     example_indices_batch,
                     example_intervention_files_batch,
@@ -150,7 +150,7 @@ class ModelResponseEngine(Engine):
                 example_indices_batch = []
                 example_intervention_files_batch = []
                 example_parsed_counterfactuals_batch = []
-                batch_couter = 0
+                batch_counter = 0
             
             if os.path.exists(os.path.join(
                 self.output_dir,
@@ -182,7 +182,7 @@ class ModelResponseEngine(Engine):
             example_indices_batch.append(example_idx)
             example_intervention_files_batch.append(parsed_intervention_files)
             example_parsed_counterfactuals_batch.append(parsed_counterfactuals)
-            batch_couter += len(parsed_intervention_files) * self.n_completions
+            batch_counter += 1
             
         if len(example_indices_batch) > 0:
             self._get_counterfactual_responses_batch(

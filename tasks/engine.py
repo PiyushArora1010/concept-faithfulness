@@ -27,6 +27,7 @@ class Engine:
         self.model = get_language_model(
             self.model_tag, 
             max_tokens=self.model_max_tokens, 
-            temperature=self.model_temperature
+            temperature=self.model_temperature,
+            batch_size=self.model_batch_size
         )
     
