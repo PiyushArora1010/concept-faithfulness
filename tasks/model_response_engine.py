@@ -49,6 +49,8 @@ class ModelResponseEngine(Engine):
                 except:
                     print(f"Failed to extract answer for example {example_idx}, completion {completion_idx}. Saving empty answer.")
                     answer = "N/A"
+                    
+                print(f"Example {example_idx}, Completion {completion_idx}: Answer: {answer}")
                 
                 answer_dict = {
                     "prompt": prompts[global_cnt],
@@ -124,6 +126,8 @@ class ModelResponseEngine(Engine):
                     except:
                         print(f"Failed to extract answer for example {example_idx}, intervention {intrv_str}, completion {completion_idx}. Saving empty answer.")
                         answer = "N/A"
+                        
+                    print(f"Example {example_idx}, Intervention {intrv_str}, Completion {completion_idx}: Answer: {answer}")
                     
                     answer_dict = {
                         "prompt": prompts[global_cnt],
