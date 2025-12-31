@@ -2,17 +2,17 @@ from module.models import Model
 from module.datasets.bbq import BBQDataset
 from module.datasets.medqa import MedQADataset
 
-def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4):
+def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4, thinking=False):
     if model_tag == "Llama3.2_1B":
         return Model(name="meta-llama/Llama-3.2-1B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
     elif model_tag == "Llama3.1_8B":
         return Model(name="meta-llama/Llama-3.1-8B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
     elif model_tag == "Qwen3_8B":
-        return Model(name="Qwen/Qwen3-8B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
+        return Model(name="Qwen/Qwen3-8B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left", thinking=thinking)
     elif model_tag == "Qwen3_14B":
-        return Model(name="Qwen/Qwen3-14B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
+        return Model(name="Qwen/Qwen3-14B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left", thinking=thinking)
     elif model_tag == "Qwen3_32B":
-        return Model(name="Qwen/Qwen3-32B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
+        return Model(name="Qwen/Qwen3-32B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left", thinking=thinking)
     else:
         raise ValueError(f"Unsupported model name: {model_tag}")
     

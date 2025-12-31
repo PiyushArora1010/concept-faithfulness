@@ -9,6 +9,7 @@ class Model:
         temperature=0.7,
         batch_size=4,
         padding_side="left",
+        thinking=False,
     ):
         self.name = name
         self.temperature = temperature
@@ -23,7 +24,7 @@ class Model:
             trust_remote_code=True,
         )
         
-        self.thinking = False
+        self.thinking = thinking
 
         # Load tokenizer
         if padding_side is not None:
@@ -52,7 +53,7 @@ class Model:
                 [{"role": "user", "content": prompt}],
                 tokenize=False,
                 add_generation_prompt=True,
-                **({'enable_thinking': False} if "qwen" in self.name.lower() else {})
+                **({'enable_thinking': self.thinking} if "qwen" in self.name.lower() else {})
             )
             for prompt in prompts
         ]

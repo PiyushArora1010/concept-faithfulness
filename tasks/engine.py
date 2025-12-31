@@ -29,6 +29,7 @@ class Engine:
             self.model_tag, 
             max_tokens=self.model_max_tokens, 
             temperature=self.model_temperature,
-            batch_size=self.model_batch_size
+            batch_size=self.model_batch_size,
+            thinking=self.model_thinking
         )
     
