@@ -7,7 +7,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='bbq', help='dataset name')
     parser.add_argument('--dataset_path', type=str, default='data/bbq', help='path to dataset')
 
-    parser.add_argument('--task', type=str, default='original', help='task to perform')
+    parser.add_argument('--task', type=str, default='original_responses', help='task to perform')
 
     parser.add_argument('--model_tag', type=str, default='Qwen3_2B', help='name of model to use to generate counterfactuals data')
     parser.add_argument('--model_max_tokens', type=int, default=256, help='max tokens for LLM-based counterfactual generation model. Only relevant for completion GPT (since default max tokens is inf for Chat GPT).')

@@ -64,7 +64,7 @@ class Model:
         
         for idx in range(0, len(texts), self.batch_size):
             end_idx = min(idx + self.batch_size, len(texts))
-
+            print(f"Generating responses for batch {idx} to {end_idx}...")
             batch_inputs = {k: v[idx:end_idx].to(self.model.device) for k, v in model_inputs.items()}
             
             generated_ids_batch = self.model.generate(

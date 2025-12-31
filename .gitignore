@@ -1,2 +1,5 @@
 token.txt
 **/__pycache__/
+concept_outputs/
+model_responses/
+logs/
