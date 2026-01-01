@@ -3,3 +3,6 @@ token.txt
 concept_outputs/
 model_responses/
 logs/
+cache_paths.sh
+downloads/
+implied_concepts/

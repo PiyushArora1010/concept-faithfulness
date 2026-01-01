@@ -9,6 +9,7 @@ from tasks.engine import Engine
 class ConceptInterventionEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
+        self.output_dir = os.path.join("concept_outputs", args.output_dir)
         
     def _get_concept_ids_batch(self, example_indices):
         prompts = []
@@ -124,7 +125,7 @@ class ConceptInterventionEngine(Engine):
         counterfactual_gen_dics = []
         for cnt, example_idx in enumerate(example_indices):
             example_dir = os.path.join(self.output_dir, f"example_{example_idx}")
-            existing_interventions = [x.split('.')[0].split('_')[1] for x in os.listdir(example_dir) if x.startswith('counterfactual_')]
+            existing_interventions = [x.split('.')[0].split('_')[1] for x in sorted(os.listdir(example_dir)) if x.startswith('counterfactual_')]
             if self.only_concept_removals:
                 for factor_setting in concept_settings_list[cnt]:
                     factor_setting["new_settings"] = ["UNKNOWN"]
@@ -156,7 +157,10 @@ class ConceptInterventionEngine(Engine):
             del counterfactual_gen_dic["example_idx"]
             
             s = counterfactual_responses_examples[idx]
-            s = s[s.index("Edited Context"):]
+            try:
+                s = s[s.index("Edited Context"):]
+            except:
+                print(f"Warning: 'Edited Context' not found in LLM response for example {example_idx}, intervention {counterfactual_gen_dic['intervention_str']}. Using full response.")
             counterfactual_gen_dic["counterfactual"] = s
             
             try:
@@ -164,7 +168,7 @@ class ConceptInterventionEngine(Engine):
                     counterfactual_gen_dic["counterfactual"]
                 )
             except Exception as e:
-                counterfactual_gen_dic["parsed_counterfactual"] = e
+                counterfactual_gen_dic["parsed_counterfactual"] = {}
                 print(f"Error parsing counterfactual for example {example_idx}, intervention {counterfactual_gen_dic['intervention_str']}: {e}")
                 
             output_path = counterfactual_gen_dic["output_path"]
@@ -216,7 +220,7 @@ class ConceptInterventionEngine(Engine):
         
         for idx, example_idx in enumerate(range(self.example_indices[0], self.example_indices[-1] + 1)):
 
-            if batch_counter >= self.batch_size:
+            if batch_counter >= batch_size:
                 self._apply_interventions_batch(example_indices_batch, concepts_list, concept_settings_list)
                 batch_counter = 0
                 example_indices_batch = []
@@ -231,7 +235,10 @@ class ConceptInterventionEngine(Engine):
                 concepts = json.load(f)
             with open(concept_settings_path, 'r') as f:
                 concept_settings = json.load(f)
-                
+            
+            if len(concepts) == 0 or len(concept_settings) != len(concepts):
+                print(f"Invalid concepts or concept settings for example {example_idx}. Skipping intervention generation...")
+                continue
             if concept_settings[0]["current_setting"] == "N/A":
                 print(f"No valid concept settings for example {example_idx}. Skipping intervention generation...")
                 continue

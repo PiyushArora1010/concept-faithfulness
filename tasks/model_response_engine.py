@@ -10,6 +10,7 @@ class ModelResponseEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
         self.prompting_strategy = PromptingStrategy(args.cot, args.few_shot, False, args.few_shot_prompt_name, False)
+        self.output_dir = os.path.join("model_responses", args.output_dir)
         
     def _get_original_responses_batch(self, example_indices):
         prompts = []
@@ -89,12 +90,14 @@ class ModelResponseEngine(Engine):
 
     def _get_counterfactual_responses_batch(self, example_indices, example_intervention_files, example_parsed_counterfactuals):
         prompts = []
+        cumulative_counts = []
         for cnt, example_idx in enumerate(example_indices):
+            cumulative_counts.append(len(prompts))
             for intervention_file, parsed_counterfactual in zip(example_intervention_files[cnt], example_parsed_counterfactuals[cnt]):
                 intrv_str = intervention_file.split(".")[0].split("_")[1]
                 intervention_prompt = self.dataset.format_prompt_qa_counterfactual(parsed_counterfactual, self.prompting_strategy, idx=example_idx)
                 prompts.extend([intervention_prompt] * self.n_completions)
-                
+            
         responses = self.model.batch_generate_response(prompts)
         
         for cnt, example_idx in enumerate(example_indices):
@@ -108,7 +111,8 @@ class ModelResponseEngine(Engine):
                 
             for intervention_index in range(len(example_intervention_files[cnt])):
                 for completion_idx in range(self.n_completions):
-                    global_cnt = (cnt * len(example_intervention_files[cnt]) * self.n_completions) + (intervention_index * self.n_completions) + completion_idx
+                    global_cnt = cumulative_counts[cnt] + (intervention_index * self.n_completions) + completion_idx
+                    
                     response = responses[global_cnt]
                     
                     intrv_str = example_intervention_files[cnt][intervention_index].split(".")[0].split("_")[1]
@@ -170,7 +174,7 @@ class ModelResponseEngine(Engine):
                 f"example_{example_idx}"
             )
             
-            all_intervention_files = [f for f in os.listdir(intervention_file_dir) if f.startswith("counterfactual_")]
+            all_intervention_files = [f for f in sorted(os.listdir(intervention_file_dir)) if f.startswith("counterfactual_")]
             parsed_counterfactuals = []
             parsed_intervention_files = []
             
@@ -195,11 +199,11 @@ class ModelResponseEngine(Engine):
                 example_intervention_files_batch,
                 example_parsed_counterfactuals_batch
             )
-            
+
     def run(self, task):
-        if task == 'original_responses':
+        if task == 'original':
             self._get_original_responses()
-        elif task == 'counterfactual_responses':
+        elif task == 'counterfactual':
             self._get_counterfactual_responses()
         else:
             raise ValueError(f"Unsupported task: {task}")

@@ -29,10 +29,10 @@ class Model:
         self.llm = LLM(
             model=name,
             tensor_parallel_size=torch.cuda.device_count(),
-            dtype="float16",
+            dtype="bfloat16",
             trust_remote_code=True,
             gpu_memory_utilization=0.8,
-            download_dir="downloads",
+            # download_dir="downloads",
         )
 
     def generate_response(self, prompt, n_completions=1):
@@ -95,4 +95,3 @@ if __name__ == "__main__":
 
     for i, response in enumerate(responses):
         print(f"Response {i+1}:\n{response}\n")
-    model.llm.shutdown()
