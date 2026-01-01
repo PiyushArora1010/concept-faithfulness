@@ -32,14 +32,15 @@ class ConceptInterventionEngine(Engine):
             
             response = responses[cnt]
             print(f"LLM Response for example {example_idx}:\n{response}\n")
-            
+
+            concept_path = os.path.join(example_dir, "concepts.json")
+            category_path = os.path.join(example_dir, "categories.json")
+
             try:
                 concepts, categories = parse_llm_response_concepts_and_categories(response)
                 assert len(concepts) > 0, "No concepts identified."
                 assert len(concepts) == len(categories), "Number of concepts does not match number of categories."
                 
-                concept_path = os.path.join(example_dir, "concepts.json")
-                category_path = os.path.join(example_dir, "categories.json")
                 with open(concept_path, 'w') as f:
                     json.dump(concepts, f, indent=4)
                 with open(category_path, 'w') as f:
@@ -108,13 +109,13 @@ class ConceptInterventionEngine(Engine):
             response = responses[cnt]
             print(f"LLM Response for concept settings for example {example_idx}:\n{response}\n")
             
+            concept_settings_path = os.path.join(example_dir, "concept_settings.json")
+            
             try:
                 concept_settings = parse_llm_response_factor_settings(response)
                 
                 assert len(concept_settings) == len(concepts), "Number of concept settings does not match number of concepts."
                 assert len(concept_settings) > 0, "No concept settings identified."
-                
-                concept_settings_path = os.path.join(example_dir, "concept_settings.json")
                 
                 with open(concept_settings_path, 'w') as f:
                     json.dump(concept_settings, f, indent=4)
