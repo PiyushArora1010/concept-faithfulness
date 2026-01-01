@@ -30,8 +30,7 @@ class ModelResponseEngine(Engine):
                 f"example_{example_idx}",
                 f"original"
             )
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
+
             for completion_idx in range(self.n_completions):
                 global_cnt = cnt * self.n_completions + completion_idx
                 response = responses[global_cnt]
@@ -47,6 +46,7 @@ class ModelResponseEngine(Engine):
                         self.prompting_strategy,
                         idx=example_idx
                     )
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
                     answer_dict = {
                         "prompt": prompts[global_cnt],
                         "response": response,
@@ -111,9 +111,7 @@ class ModelResponseEngine(Engine):
                 f"example_{example_idx}",
                 f"counterfactual"
             )
-            if not os.path.exists(counterfactual_dir):
-                os.makedirs(counterfactual_dir)
-                
+
             for intervention_index in range(len(example_intervention_files[cnt])):
                 for completion_idx in range(self.n_completions):
                     global_cnt = cumulative_counts[cnt] + (intervention_index * self.n_completions) + completion_idx
@@ -132,6 +130,7 @@ class ModelResponseEngine(Engine):
                             self.prompting_strategy,
                             idx=example_idx
                         )
+                        os.makedirs(os.path.dirname(file_path), exist_ok=True)
                         answer_dict = {
                             "prompt": prompts[global_cnt],
                             "response": response,

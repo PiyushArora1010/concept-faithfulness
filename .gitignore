@@ -2,6 +2,8 @@ token.txt
 **/__pycache__/
 concept_outputs/
 model_responses/
+error_concept_outputs/
+error_model_responses/
 logs/
 cache_paths.sh
 downloads/

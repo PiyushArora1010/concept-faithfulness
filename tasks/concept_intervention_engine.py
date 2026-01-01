@@ -27,9 +27,6 @@ class ConceptInterventionEngine(Engine):
         for cnt, example_idx in enumerate(example_indices):
 
             example_dir = os.path.join(self.output_dir, f"example_{example_idx}")
-            if not os.path.exists(example_dir):
-                os.makedirs(example_dir)
-            
             response = responses[cnt]
             print(f"LLM Response for example {example_idx}:\n{response}\n")
 
@@ -41,14 +38,19 @@ class ConceptInterventionEngine(Engine):
                 assert len(concepts) > 0, "No concepts identified."
                 assert len(concepts) == len(categories), "Number of concepts does not match number of categories."
                 
+                os.makedirs(os.path.dirname(concept_path), exist_ok=True)
+                
                 with open(concept_path, 'w') as f:
                     json.dump(concepts, f, indent=4)
                 with open(category_path, 'w') as f:
                     json.dump(categories, f, indent=4)
                 print(f"Saved concepts and categories for example {example_idx} to {concept_path} and {category_path}.")
+                
             except Exception as e:
                 concept_path = "error_" + concept_path
+                
                 os.makedirs(os.path.dirname(concept_path), exist_ok=True)
+                
                 with open(concept_path, 'w') as f:
                     json.dump({
                         "error": str(e),
@@ -103,8 +105,6 @@ class ConceptInterventionEngine(Engine):
             concept_path = os.path.join(example_dir, "concepts.json")
             with open(concept_path, 'r') as f:
                 concepts = json.load(f)
-            if not os.path.exists(example_dir):
-                os.makedirs(example_dir)
 
             response = responses[cnt]
             print(f"LLM Response for concept settings for example {example_idx}:\n{response}\n")
@@ -123,6 +123,7 @@ class ConceptInterventionEngine(Engine):
                 print(f"Saved concept settings for example {example_idx} to {concept_settings_path}.")
             except Exception as e:
                 concept_settings_path = "error_" + concept_settings_path
+                
                 os.makedirs(os.path.dirname(concept_settings_path), exist_ok=True)
                 
                 with open(concept_settings_path, 'w') as f:
@@ -218,6 +219,7 @@ class ConceptInterventionEngine(Engine):
                 counterfactual_gen_dic["parsed_counterfactual"] = {}
 
                 output_path = "error_" + output_path
+                
                 os.makedirs(os.path.dirname(output_path), exist_ok=True)
                 
                 with open(output_path, 'w') as f:
