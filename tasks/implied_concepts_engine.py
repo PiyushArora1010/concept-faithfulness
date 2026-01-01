@@ -9,15 +9,7 @@ class ImpliedConceptsEngine(Engine):
         super().__init__(args)
         self.output_dir = os.path.join("implied_concepts", args.output_dir)
             
-    def _identify_implied_concepts_batch(
-        self,
-        sub_dir,
-        example_indices,
-        example_concepts,
-        example_concept_values,
-        example_interventions,
-        example_responses
-    ):
+    def _identify_implied_concepts_batch(self, sub_dir, example_indices, example_concepts, example_concept_values, example_interventions, example_responses):
         prompts = []
         concepts_to_check_len = []
         cumulative_counts = []
@@ -164,6 +156,14 @@ class ImpliedConceptsEngine(Engine):
                 print(f"Implied concepts already identified for example {example_idx} in {sub_dir}. Skipping...")
                 continue
 
+            if not os.path.exists(os.path.join(
+                self.response_dir,
+                f"example_{example_idx}",
+                sub_dir
+            )):
+                print(f"No responses found for example {example_idx} in {sub_dir}. Skipping...")
+                continue
+
             with open(os.path.join(
                 self.intervention_dir,
                 f"example_{example_idx}",
@@ -177,8 +177,8 @@ class ImpliedConceptsEngine(Engine):
                 "concept_settings.json"
             ), 'r') as f:
                 concept_values = json.load(f)
-                
             
+            # LOAD INTERVENTIONS
             intervention_dir = os.path.join(
                 self.intervention_dir,
                 f"example_{example_idx}"
@@ -189,6 +189,9 @@ class ImpliedConceptsEngine(Engine):
                 with open(os.path.join(intervention_dir, intervention_file), 'r') as f:
                     counterfactual_data = json.load(f)
                 intervention_dict[os.path.join(intervention_dir, intervention_file)] = counterfactual_data
+            if len(intervention_dict) == 0:
+                print(f"No interventions found for example {example_idx}. Skipping...")
+                continue
             
             response_dir = os.path.join(
                 self.response_dir,

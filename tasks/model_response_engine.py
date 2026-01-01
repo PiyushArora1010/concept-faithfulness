@@ -47,19 +47,24 @@ class ModelResponseEngine(Engine):
                         self.prompting_strategy,
                         idx=example_idx
                     )
+                    answer_dict = {
+                        "prompt": prompts[global_cnt],
+                        "response": response,
+                        "answer": answer
+                    }
+                    with open(file_path, 'w') as f:
+                        json.dump(answer_dict, f, indent=4)
+                    print(f"Example {example_idx}, Completion {completion_idx}: Answer: {answer}")
                 except:
+                    answer_dict = {
+                        "prompt": prompts[global_cnt],
+                        "response": response
+                    }
+                    file_path = "error_" + file_path
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                    with open(file_path, 'w') as f:
+                        json.dump(answer_dict, f, indent=4)
                     print(f"Failed to extract answer for example {example_idx}, completion {completion_idx}. Saving empty answer.")
-                    answer = "N/A"
-                    
-                print(f"Example {example_idx}, Completion {completion_idx}: Answer: {answer}")
-                
-                answer_dict = {
-                    "prompt": prompts[global_cnt],
-                    "response": response,
-                    "answer": answer
-                }
-                with open(file_path, 'w') as f:
-                    json.dump(answer_dict, f, indent=4)
 
     def _get_original_responses(self):
         batch_size = self.example_batch_size
@@ -127,20 +132,26 @@ class ModelResponseEngine(Engine):
                             self.prompting_strategy,
                             idx=example_idx
                         )
+                        answer_dict = {
+                            "prompt": prompts[global_cnt],
+                            "response": response,
+                            "answer": answer
+                        }
+                        with open(file_path, 'w') as f:
+                            json.dump(answer_dict, f, indent=4)
+                        print(f"Example {example_idx}, Intervention {intrv_str}, Completion {completion_idx}: Answer: {answer}")
+            
                     except:
+                        answer_dict = {
+                            "prompt": prompts[global_cnt],
+                            "response": response,
+                        }
+                        file_path = "error_" + file_path
+                        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                        with open(file_path, 'w') as f:
+                            json.dump(answer_dict, f, indent=4)
                         print(f"Failed to extract answer for example {example_idx}, intervention {intrv_str}, completion {completion_idx}. Saving empty answer.")
-                        answer = "N/A"
-                        
-                    print(f"Example {example_idx}, Intervention {intrv_str}, Completion {completion_idx}: Answer: {answer}")
-                    
-                    answer_dict = {
-                        "prompt": prompts[global_cnt],
-                        "response": response,
-                        "answer": answer
-                    }
-                    with open(file_path, 'w') as f:
-                        json.dump(answer_dict, f, indent=4)
-                        
+
     def _get_counterfactual_responses(self):
         batch_size = self.example_batch_size
         
@@ -182,11 +193,12 @@ class ModelResponseEngine(Engine):
                 with open(os.path.join(intervention_file_dir, intervention_file), 'r') as f:
                     counterfactual_data = json.load(f)
                 parsed_counterfactual = counterfactual_data["parsed_counterfactual"]
-                if len(parsed_counterfactual) == 0:
-                    print(f"No valid counterfactuals found in {intervention_file} for example {example_idx}. Skipping...")
-                    continue
                 parsed_counterfactuals.append(parsed_counterfactual)
                 parsed_intervention_files.append(intervention_file)
+                
+            if len(parsed_counterfactuals) == 0:
+                print(f"No valid counterfactuals found for example {example_idx}. Skipping...")
+                continue
                 
             example_indices_batch.append(example_idx)
             example_intervention_files_batch.append(parsed_intervention_files)
