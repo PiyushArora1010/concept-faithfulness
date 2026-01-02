@@ -202,7 +202,7 @@ def parse_llm_response_implied_concepts(response, n_concepts):
     
     parsed_fds = []
     for idx, concept_decision in enumerate(concept_decisions):
-        decision_bools = ["YES" in concept_decision.upper(), "NO" in concept_decision.upper()]
+        decision_bools = ["(YES)" in concept_decision.upper(), "(NO)" in concept_decision.upper()]
         if sum(decision_bools) != 1:
             raise ValueError(
                 f"Concept decision {idx+1} does not match expected format. "
@@ -210,7 +210,7 @@ def parse_llm_response_implied_concepts(response, n_concepts):
                 f"Decision text: '{concept_decision}'. "
                 f"Full response was: {response}"
             )
-        parsed_fds.append(1 if "YES" in concept_decision.upper() else 0)
+        parsed_fds.append(1 if "(YES)" in concept_decision.upper() else 0)
     
     return parsed_fds, response
 
