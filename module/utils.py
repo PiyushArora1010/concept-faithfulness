@@ -168,25 +168,45 @@ def enumerate_interventions(factors, factor_settings, k_hop=None, include_no_int
     return intervention_list
 
 def parse_llm_response_implied_concepts(response, n_concepts):
-    """
-    Parses the LLM response about which concepts are implied by the LLM's explanation.
-    Args:
-        response: response from the LLM
-        n_concepts: the number of concepts we expect the LLM to provide decisions for
-    Returns:
-        parsed_fds: a list of 1s and 0s indicating whether each concept is implied by the CoT explanation
-    """
-    # split based on presence of numbers followed by a period and a space
-    pattern = re.compile(r'\d+\.\s')
-    concept_decisions = pattern.split(response)[1:]
+    lines = response.strip().split('\n')
+    
+    # REMOVE <THINK></THINK> TAGS AND CONTENT INSIDE if PRESENT
+    think_start = None
+    think_end = None
+    for i, line in enumerate(lines):
+        if '<think>' in line.lower():
+            think_start = i
+        if '</think>' in line.lower():
+            think_end = i
+            break
+    if think_start is not None and think_end is not None:
+        lines = lines[:think_start] + lines[think_end + 1 :]
+
+    concept_decisions = []
+    for line in lines:
+        line = line.strip()
+        if re.match(r'^\d+\.', line) and ('(YES)' in line.upper() or '(NO)' in line.upper()):
+            concept_decisions.append(line)
+
     if len(concept_decisions) != n_concepts:
-        raise ValueError(f"Number of concept decisions does not match expected number of concepts. Expected {n_concepts}, got {len(concept_decisions)}. Full response was {response}.")
+        raise ValueError(
+            f"Number of concept decisions does not match expected number of concepts. "
+            f"Expected {n_concepts}, got {len(concept_decisions)}. "
+            f"Full response was: {response}"
+        )
+    
     parsed_fds = []
     for idx, concept_decision in enumerate(concept_decisions):
-        decision_bools = ["YES" in concept_decision, "NO" in concept_decision]
+        decision_bools = ["YES" in concept_decision.upper(), "NO" in concept_decision.upper()]
         if sum(decision_bools) != 1:
-            raise ValueError(f"Concept decision {idx+1} does not match expected format. (Did not provide yes/no decision). Full response was {response}.")
-        parsed_fds.append(1 if "YES" in concept_decision else 0)
+            raise ValueError(
+                f"Concept decision {idx+1} does not match expected format. "
+                f"(Did not provide yes/no decision or provided both). "
+                f"Decision text: '{concept_decision}'. "
+                f"Full response was: {response}"
+            )
+        parsed_fds.append(1 if "YES" in concept_decision.upper() else 0)
+    
     return parsed_fds, response
 
 class PromptingStrategy:

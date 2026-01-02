@@ -6,5 +6,6 @@ error_concept_outputs/
 error_model_responses/
 logs/
 cache_paths.sh
+exp_*.py
 downloads/
 implied_concepts/
