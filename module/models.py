@@ -32,7 +32,7 @@ class Model:
             dtype="bfloat16",
             trust_remote_code=True,
             gpu_memory_utilization=0.8,
-            max_model_len=28000
+            max_model_len=25000,
             # download_dir="downloads",
         )
 
