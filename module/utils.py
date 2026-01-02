@@ -183,10 +183,15 @@ def parse_llm_response_implied_concepts(response, n_concepts):
         lines = lines[:think_start] + lines[think_end + 1 :]
 
     concept_decisions = []
-    for line in lines:
-        line = line.strip()
-        if re.match(r'^\d+\.', line) and ('(YES)' in line.upper() or '(NO)' in line.upper()):
-            concept_decisions.append(line)
+        seen_numbers = set()
+        for line in lines:
+            line = line.strip()
+            match = re.match(r'^(\d+)\.', line)
+            if match and ('(YES)' in line.upper() or '(NO)' in line.upper()):
+                number = int(match.group(1))
+                if number not in seen_numbers:
+                    concept_decisions.append(line)
+                    seen_numbers.add(number)
 
     if len(concept_decisions) != n_concepts:
         raise ValueError(
