@@ -9,3 +9,7 @@ cache_paths.sh
 exp_*.py
 downloads/
 implied_concepts/
+vllm
+*.o*
+*.pbs
+*.log

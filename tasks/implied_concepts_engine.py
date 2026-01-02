@@ -120,6 +120,8 @@ class ImpliedConceptsEngine(Engine):
 
                 with open(output_path, "w") as f:
                     json.dump(fd_dict, f, indent=4)
+                    
+                print(f"Saved implied concepts for example {example_idx}, response {response_id}.")
         
     def _identify_implied_concepts(self, sub_dir):
         batch_size = self.example_batch_size
