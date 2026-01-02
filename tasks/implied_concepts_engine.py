@@ -96,14 +96,14 @@ class ImpliedConceptsEngine(Engine):
                         )
                         response_list.append(parsed_response)
                         concept_decision_list.append(concept_decision)
-                    except:
+                    except Exception as e:
                         print(
                             f"Failed to parse implied concepts response for example "
                             f"{example_idx}, response {response_id}, completion {r}. "
                             f"Saving empty response."
                         )
-                        response_list.append({})
-                        concept_decision_list.append({})
+                        response_list.append(response)
+                        concept_decision_list.append({"error": str(e)})
 
                 output_path = os.path.join(
                     self.output_dir,
