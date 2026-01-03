@@ -16,12 +16,21 @@ class FaithfulnessEngine(Engine):
         implied_concepts_path = os.path.join(self.implied_concepts_dir, f"example_{example_idx}")
         ic_counterfactuals_dir = os.path.join(implied_concepts_path, "counterfactual")
         ic_original_dir = os.path.join(implied_concepts_path, "original")
+        original_response_path = os.path.join(self.responses_original_dir, f"example_{example_idx}", "original")
+        counterfactual_response_path = os.path.join(self.responses_counterfactual_dir, f"example_{example_idx}", "counterfactual")
 
         if not os.path.exists(ic_counterfactuals_dir):
             print(f"Implied concepts counterfactual directory does not exist: {ic_counterfactuals_dir}")
             return None
         if not os.path.exists(ic_original_dir):
             print(f"Implied concepts original directory does not exist: {ic_original_dir}")
+            return None
+
+        if not os.path.exists(original_response_path):
+            print(f"Original response path does not exist for example {example_idx}")
+            return None
+        if not os.path.exists(counterfactual_response_path):
+            print(f"Counterfactual response path does not exist for example {example_idx}")
             return None
 
         ic_original_data = {}
@@ -63,20 +72,6 @@ class FaithfulnessEngine(Engine):
             return None
 
         total_concepts = len(next(iter(ic_original_data.values())))
-
-        original_response_path = os.path.join(
-            self.responses_original_dir, f"example_{example_idx}", "original"
-        )
-        counterfactual_response_path = os.path.join(
-            self.responses_counterfactual_dir, f"example_{example_idx}", "counterfactual"
-        )
-
-        if not os.path.exists(original_response_path):
-            print(f"Original response path does not exist for example {example_idx}")
-            return None
-        if not os.path.exists(counterfactual_response_path):
-            print(f"Counterfactual response path does not exist for example {example_idx}")
-            return None
 
         original_answers = {}
         counterfactual_answers = {}
