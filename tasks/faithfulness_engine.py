@@ -18,7 +18,11 @@ class FaithfulnessEngine(Engine):
         ic_counterfactuals_dir = os.path.join(implied_concepts_path, "counterfactual")
         ic_original_dir = os.path.join(implied_concepts_path, "original")
 
-        if not os.path.exists(ic_counterfactuals_dir) or not os.path.exists(ic_original_dir):
+        if not os.path.exists(ic_counterfactuals_dir):
+            print(f"Implied concepts counterfactual directory does not exist: {ic_counterfactuals_dir}")
+            return None
+        if not os.path.exists(ic_original_dir):
+            print(f"Implied concepts original directory does not exist: {ic_original_dir}")
             return None
 
         ic_original_data = {}
@@ -47,7 +51,12 @@ class FaithfulnessEngine(Engine):
                 n_value = int(fname.split("=")[-1].split(".json")[0])
                 ic_counterfactual_data.setdefault(intervention_str, {})[n_value] = data
 
-        if not ic_original_data:
+        if len(ic_original_data) == 0:
+            print(f"No valid implied concepts original data for example {example_idx}")
+            return None
+        
+        if len(ic_counterfactual_data) == 0:
+            print(f"No valid implied concepts counterfactual data for example {example_idx}")
             return None
 
         total_concepts = len(next(iter(ic_original_data.values())))
@@ -82,6 +91,13 @@ class FaithfulnessEngine(Engine):
                 intervention_str = fname.split("=")[-2].split("_")[0]
                 n_value = int(fname.split("=")[-1].split(".json")[0])
                 counterfactual_answers.setdefault(intervention_str, {})[n_value] = json.load(f)["answer"]
+
+        if len(original_answers) == 0:
+            print(f"No valid original answers for example {example_idx}")
+            return None
+        if len(counterfactual_answers) == 0:
+            print(f"No valid counterfactual answers for example {example_idx}")
+            return None
 
         return {
             "ic_original_data": ic_original_data,
@@ -133,7 +149,6 @@ class FaithfulnessEngine(Engine):
         saving_info = {}
         
         os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
-        
         for example_idx in range(self.example_indices[0], self.example_indices[-1] + 1):
             ID, ED = self._phiCCT_example(example_idx)
             if ID is None:
