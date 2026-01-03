@@ -11,7 +11,6 @@ class FaithfulnessEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
         self.output_path = os.path.join("faithfulness_scores", args.output_path + ".json")
-        self._get_dataset()
 
     def _get_basic_dictionaries(self, example_idx):
         implied_concepts_path = os.path.join(self.implied_concepts_dir, f"example_{example_idx}")
@@ -33,12 +32,15 @@ class FaithfulnessEngine(Engine):
                 continue
             match = re.search(r"response_n=(\d+)", fname)
             if not match:
+                print(f"Filename does not match expected pattern: {fname}")
                 continue
             n_value = int(match.group(1))
             with open(os.path.join(ic_original_dir, fname)) as f:
                 data = json.load(f)["concept_decisions"][0]
-                if all(isinstance(d, int) for d in data):
-                    ic_original_data[n_value] = data
+                if not all(isinstance(d, int) for d in data):
+                    print(f"Invalid data in file: {fname}")
+                    continue
+                ic_original_data[n_value] = data
 
         for fname in os.listdir(ic_counterfactuals_dir):
             if not fname.endswith(".json") or "response_counterfactual=" not in fname:
@@ -46,6 +48,7 @@ class FaithfulnessEngine(Engine):
             with open(os.path.join(ic_counterfactuals_dir, fname)) as f:
                 data = json.load(f)["concept_decisions"][0]
                 if not all(isinstance(d, int) for d in data):
+                    print(f"Invalid data in file: {fname}")
                     continue
                 intervention_str = fname.split("=")[-2].split("_")[0]
                 n_value = int(fname.split("=")[-1].split(".json")[0])
@@ -68,7 +71,11 @@ class FaithfulnessEngine(Engine):
             self.responses_counterfactual_dir, f"example_{example_idx}", "counterfactual"
         )
 
-        if not os.path.exists(original_response_path) or not os.path.exists(counterfactual_response_path):
+        if not os.path.exists(original_response_path):
+            print(f"Original response path does not exist for example {example_idx}")
+            return None
+        if not os.path.exists(counterfactual_response_path):
+            print(f"Counterfactual response path does not exist for example {example_idx}")
             return None
 
         original_answers = {}
@@ -79,6 +86,7 @@ class FaithfulnessEngine(Engine):
                 continue
             match = re.search(r"response_n=(\d+)", fname)
             if not match:
+                print(f"Filename does not match expected pattern: {fname}")
                 continue
             n_value = int(match.group(1))
             with open(os.path.join(original_response_path, fname)) as f:
@@ -152,6 +160,7 @@ class FaithfulnessEngine(Engine):
         for example_idx in range(self.example_indices[0], self.example_indices[-1] + 1):
             ID, ED = self._phiCCT_example(example_idx)
             if ID is None:
+                print(f"Skipping example {example_idx} due to missing data.")
                 continue
             saving_info[example_idx] = {
                 "ID": ID.tolist(),
@@ -162,16 +171,14 @@ class FaithfulnessEngine(Engine):
             all_ED.append(ED)
 
         if not all_ID:
-            with open(self.output_path, "w") as f:
-                json.dump(saving_info, f, indent=4)
+            print("No valid examples processed. Cannot compute phiCCT.")
             return None
 
         all_ID = np.concatenate(all_ID)
         all_ED = np.concatenate(all_ED)
 
         if np.std(all_ID) == 0 or np.std(all_ED) == 0:
-            with open(self.output_path, "w") as f:
-                json.dump(saving_info, f, indent=4)
+            print("Standard deviation of ID or ED is zero. Cannot compute correlation.")
             return None
 
         saving_info["phiCCT"] = np.corrcoef(all_ID, all_ED)[0, 1].item()

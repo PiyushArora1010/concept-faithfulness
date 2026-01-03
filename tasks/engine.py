@@ -5,6 +5,7 @@ from module.utils import PromptingStrategy
 class Engine:
     def __init__(self, args):
         self.args = vars(args)
+        self._get_dataset()
         for key, value in self.args.items():
             setattr(self, key, value)
         

@@ -8,7 +8,6 @@ class ImpliedConceptsEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
         self.output_dir = os.path.join("implied_concepts", args.output_dir)
-        self._get_dataset()
         self._get_model()
             
     def _identify_implied_concepts_batch(self, sub_dir, example_indices, example_concepts, example_concept_values, example_interventions, example_responses):

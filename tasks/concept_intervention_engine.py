@@ -10,7 +10,6 @@ class ConceptInterventionEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
         self.output_dir = os.path.join("concept_outputs", args.output_dir)
-        self._get_dataset()
         self._get_model()
 
     def _get_concept_ids_batch(self, example_indices):
