@@ -7,9 +7,6 @@ class Engine:
         self.args = vars(args)
         for key, value in self.args.items():
             setattr(self, key, value)
-            
-        self._get_dataset()
-        self._get_model()
         
         if self.example_indices == "all":
             self.example_indices = list(range(len(self.dataset)))

@@ -11,6 +11,8 @@ class ModelResponseEngine(Engine):
         super().__init__(args)
         self.prompting_strategy = PromptingStrategy(args.cot, args.few_shot, False, args.few_shot_prompt_name, False)
         self.output_dir = os.path.join("model_responses", args.output_dir)
+        self._get_dataset()
+        self._get_model()
         
     def _get_original_responses_batch(self, example_indices):
         prompts = []
