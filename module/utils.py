@@ -9,6 +9,8 @@ def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4,
         return Model(name="meta-llama/Llama-3.2-1B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
     elif model_tag == "Llama3.1_8B":
         return Model(name="meta-llama/Llama-3.1-8B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
+    elif model_tag == "Llama3.3_70B":
+        return Model(name="meta-llama/Llama-3.3-70B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
     elif model_tag == "Qwen3_8B":
         return Model(name="Qwen/Qwen3-8B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left", thinking=thinking)
     elif model_tag == "Qwen3_14B":
