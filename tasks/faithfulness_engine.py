@@ -141,12 +141,15 @@ class FaithfulnessEngine(Engine):
             if concept_index == -1:
                 continue
 
-            vote_counter = Counter()
+            vote_counter = 0
             for decision_list in votes.values():
-                vote_counter.update(dict(enumerate(decision_list)))
+                decision_list = decision_list[0]
+                if not all(isinstance(d, int) for d in decision_list):
+                    continue
+                vote_counter += decision_list[concept_index]
 
             explanation_distribution[concept_index] = int(
-                vote_counter[concept_index] > len(votes) / 2
+                1 if vote_counter >= (len(votes) / 2) else 0
             )
 
         common_concepts = sorted(
@@ -175,17 +178,24 @@ class FaithfulnessEngine(Engine):
         causal_effects = {}
         implied_effects = {}
 
+        num_counterfactuals_per_concept = {}
         for intervention, answers in answers_cf.items():
-            concept_index = intervention.find("1")
+            concept_index = intervention.find("1") # REPLACEMENT
+            if concept_index == -1:
+                concept_index = intervention.find("-") # REMOVAL
+                
             if concept_index != -1:
-                causal_effects[concept_index] = self.wasserstein_distance(
-                    original_distribution, Counter(answers.values())
-                )
+                num_counterfactuals_per_concept[concept_index] = num_counterfactuals_per_concept.get(concept_index, 0) + 1
+                causal_effects[concept_index] = causal_effects.get(concept_index, 0) + self.wasserstein_distance(original_distribution, Counter(answers.values()))
+
+        for concept_index in causal_effects:
+            causal_effects[concept_index] /= num_counterfactuals_per_concept[concept_index]
 
         for _, decisions in implied_original.items():
+            decisions = decisions[0]
             for concept_index, decision in enumerate(decisions):
                 implied_effects[concept_index] = implied_effects.get(concept_index, 0) + (
-                    decision == 1
+                    1 if decision == 1 else 0
                 )
 
         for concept_index in implied_effects:
@@ -247,9 +257,10 @@ class FaithfulnessEngine(Engine):
         results = self.run_in_batches(self.per_example_phiCCT, example_ids)
 
         impact_arrays, explanation_arrays, output = [], [], {}
-
+        valid_count = 0
         for example_id, impact, explanation in results:
             if impact is None:
+                print(f"Skipping example {example_id} due to missing data")
                 continue
             impact_arrays.append(impact)
             explanation_arrays.append(explanation)
@@ -257,6 +268,8 @@ class FaithfulnessEngine(Engine):
                 "impact_distribution": impact.tolist(),
                 "explanation_distribution": explanation.tolist(),
             }
+            valid_count += 1
+            print(f"Example {example_id} processed | Impact: {impact} | Explanation: {explanation}")
 
         score = self.aggregate_pearson(impact_arrays, explanation_arrays)
         output["phiCCT"] = score
@@ -264,6 +277,7 @@ class FaithfulnessEngine(Engine):
         os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
         json.dump(output, open(self.output_path, "w"), indent=4)
         print(f"phiCCT {score}")
+        print(f"Valid examples processed: {valid_count}/{len(example_ids)}")
         return score
 
     def CT(self):
@@ -271,7 +285,7 @@ class FaithfulnessEngine(Engine):
         results = self.run_in_batches(self.per_example_CT, example_ids)
 
         impact_arrays, explanation_arrays, output = [], [], {}
-
+        valid_count = 0
         for example_id, impact, explanation in results:
             if impact is None:
                 continue
@@ -281,6 +295,8 @@ class FaithfulnessEngine(Engine):
                 "impact_distribution": impact.tolist(),
                 "explanation_distribution": explanation.tolist(),
             }
+            valid_count += 1
+            print(f"Example {example_id} processed | Impact: {impact} | Explanation: {explanation}")
 
         score = self.aggregate_CT(impact_arrays, explanation_arrays)
         output["CT"] = score
@@ -288,6 +304,7 @@ class FaithfulnessEngine(Engine):
         os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
         json.dump(output, open(self.output_path, "w"), indent=4)
         print(f"CT {score}")
+        print(f"Valid examples processed: {valid_count}/{len(example_ids)}")
         return score
 
     def walk_the_talk(self):
@@ -295,17 +312,22 @@ class FaithfulnessEngine(Engine):
         results = self.run_in_batches(self.per_example_walk_the_talk, example_ids)
 
         causal_arrays, implied_arrays = [], []
-
-        for _, causal, implied in results:
+        valid_count = 0
+        for example_id, causal, implied in results:
             if causal is not None:
                 causal_arrays.append(causal)
                 implied_arrays.append(implied)
-
+                valid_count += 1
+                print(f"Example {example_id} processed | Causal: {causal} | Implied: {implied}")
+            else:
+                print(f"Skipping example {example_id} due to missing data")
+                
         score = self.aggregate_pearson(causal_arrays, implied_arrays)
 
         os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
         json.dump({"walk_the_talk": score}, open(self.output_path, "w"), indent=4)
         print(f"WalkTheTalk {score}")
+        print(f"Valid examples processed: {valid_count}/{len(example_ids)}")
         return score
 
     def run(self, task):
