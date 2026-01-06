@@ -3,268 +3,318 @@ import json
 import re
 import numpy as np
 from collections import Counter
-from pathlib import Path
-from typing import Dict, Optional, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 from tasks.engine import Engine
 
+
 class FaithfulnessEngine(Engine):
+
     def __init__(self, args):
         super().__init__(args)
-        self.output_path = Path("faithfulness_scores") / f"{args.output_path}.json"
-        self.num_workers = getattr(args, 'num_workers', os.cpu_count())
+        self.output_path = os.path.join(
+            "faithfulness_scores", f"{args.output_path}.json"
+        )
+        self.num_workers = getattr(args, "num_workers", os.cpu_count())
+        self.mode = getattr(args, "mode", "global")
 
-    def _load_ic_data(self, directory, is_counterfactual = False):
-        result = {}
-        
-        for fpath in directory.glob("*.json"):
-            if is_counterfactual and "response_counterfactual=" not in fpath.name:
-                continue
-            
-            try:
-                with fpath.open() as f:
-                    data = json.load(f)["concept_decisions"][0]
-                    if not all(isinstance(d, int) for d in data):
-                        continue
-                    
-                    if is_counterfactual:
-                        parts = fpath.stem.split("=")
-                        intervention_str = parts[-2].split("_")[0]
-                        n_value = int(parts[-1])
-                        result.setdefault(intervention_str, {})[n_value] = data
-                    else:
-                        match = re.search(r"response_n=(\d+)", fpath.name)
-                        if match:
-                            n_value = int(match.group(1))
-                            result[n_value] = data
-            except (json.JSONDecodeError, KeyError, ValueError, IndexError) as e:
-                print(f"Error processing {fpath.name}: {e}")
-                continue
-        
-        return result
-
-    def _load_answers(self, directory, is_counterfactual = False):
-        result = {}
-        
-        for fpath in directory.glob("*.json"):
-            if is_counterfactual and "response_counterfactual=" not in fpath.name:
-                continue
-            
-            try:
-                with fpath.open() as f:
-                    answer = json.load(f)["answer"]
-                    
-                    if is_counterfactual:
-                        parts = fpath.stem.split("=")
-                        intervention_str = parts[-2].split("_")[0]
-                        n_value = int(parts[-1])
-                        result.setdefault(intervention_str, {})[n_value] = answer
-                    else:
-                        match = re.search(r"response_n=(\d+)", fpath.name)
-                        if match:
-                            n_value = int(match.group(1))
-                            result[n_value] = answer
-            except (json.JSONDecodeError, KeyError, ValueError, IndexError) as e:
-                print(f"Error processing {fpath.name}: {e}")
-                continue
-        
-        return result
-
-    def _get_basic_dictionaries(self, example_idx):
-        base_path = Path(self.implied_concepts_dir) / f"example_{example_idx}"
-        ic_cf_dir = base_path / "counterfactual"
-        ic_orig_dir = base_path / "original"
-        
-        resp_base = Path(self.responses_original_dir) / f"example_{example_idx}"
-        orig_resp_path = resp_base / "original"
-        
-        cf_resp_base = Path(self.responses_counterfactual_dir) / f"example_{example_idx}"
-        cf_resp_path = cf_resp_base / "counterfactual"
-
-        required_paths = [
-            (ic_orig_dir, "Implied concepts original directory"),
-            (ic_cf_dir, "Implied concepts counterfactual directory"),
-            (orig_resp_path, "Original response path"),
-            (cf_resp_path, "Counterfactual response path")
-        ]
-        
-        for path, description in required_paths:
-            if not path.exists():
-                print(f"{description} does not exist: {path}")
-                return None
-
-        ic_original_data = self._load_ic_data(ic_orig_dir, is_counterfactual=False)
-        ic_counterfactual_data = self._load_ic_data(ic_cf_dir, is_counterfactual=True)
-        original_answers = self._load_answers(orig_resp_path, is_counterfactual=False)
-        counterfactual_answers = self._load_answers(cf_resp_path, is_counterfactual=True)
-
-        if not all([ic_original_data, ic_counterfactual_data, original_answers, counterfactual_answers]):
-            print(f"Missing data for example {example_idx}")
-            return None
-
-        return {
-            "ic_original_data": ic_original_data,
-            "ic_counterfactual_data": ic_counterfactual_data,
-            "original_answers": original_answers,
-            "counterfactual_answers": counterfactual_answers,
-        }
+    # --------------------------------------------------------------------------
+    # Core math utilities
+    # --------------------------------------------------------------------------
 
     @staticmethod
-    def _argmax_values(d: Dict):
-        return Counter(d.values()).most_common(1)[0][0]
+    def most_frequent(values):
+        return Counter(values).most_common(1)[0][0] if values else None
 
-    def _getIDandED(self, example_idx):
-        example_info = self._get_basic_dictionaries(example_idx)
-        if example_info is None:
-            return example_idx, None, None
+    @staticmethod
+    def pearson_correlation(x, y):
+        if len(x) < 2 or len(y) < 2:
+            return None
+        if np.std(x) == 0 or np.std(y) == 0:
+            return None
+        return float(np.corrcoef(x, y)[0, 1])
 
-        original_answer = self._argmax_values(example_info["original_answers"])
+    @staticmethod
+    def wasserstein_distance(dist_a, dist_b):
+        keys = sorted(set(dist_a) | set(dist_b))
+        if not keys:
+            return 0.0
 
-        ID = {}
-        for intervention_str, answers_dict in example_info["counterfactual_answers"].items():
-            c_idx = intervention_str.find("1")
-            if c_idx == -1:
+        values_a = np.array([dist_a.get(k, 0) for k in keys], dtype=float)
+        values_b = np.array([dist_b.get(k, 0) for k in keys], dtype=float)
+
+        if values_a.sum() == 0 or values_b.sum() == 0:
+            return 0.0
+
+        values_a /= values_a.sum()
+        values_b /= values_b.sum()
+
+        return float(np.sum(np.abs(np.cumsum(values_a) - np.cumsum(values_b))))
+
+    # --------------------------------------------------------------------------
+    # Data loaders
+    # --------------------------------------------------------------------------
+
+    def load_implied_original(self, example_id):
+        return self._load_json_directory(
+            os.path.join(self.implied_concepts_dir, f"example_{example_id}", "original"),
+            "concept_decisions",
+        )
+
+    def load_implied_counterfactual(self, example_id):
+        return self._load_json_directory(
+            os.path.join(self.implied_concepts_dir, f"example_{example_id}", "counterfactual"),
+            "concept_decisions",
+            counterfactual=True,
+        )
+
+    def load_answers_original(self, example_id):
+        return self._load_json_directory(
+            os.path.join(self.responses_original_dir, f"example_{example_id}", "original"),
+            "answer",
+        )
+
+    def load_answers_counterfactual(self, example_id):
+        return self._load_json_directory(
+            os.path.join(self.responses_counterfactual_dir, f"example_{example_id}", "counterfactual"),
+            "answer",
+            counterfactual=True,
+        )
+
+    def _load_json_directory(self, directory, key, counterfactual=False):
+        data = {}
+        if not os.path.exists(directory):
+            return data
+
+        for filename in os.listdir(directory):
+            if not filename.endswith(".json"):
                 continue
-            cf_answer = self._argmax_values(answers_dict)
-            ID[c_idx] = int(cf_answer != original_answer)
-
-        ED = {}
-        for intervention_str, decisions_dict in example_info["ic_counterfactual_data"].items():
-            c_idx = intervention_str.find("1")
-            if c_idx == -1:
+            if counterfactual and "counterfactual" not in filename:
                 continue
 
-            votes = Counter()
-            for decisions in decisions_dict.values():
-                votes.update(dict(enumerate(decisions)))
+            try:
+                with open(os.path.join(directory, filename)) as f:
+                    value = json.load(f)[key]
+            except Exception:
+                continue
 
-            ED[c_idx] = int(votes[c_idx] > len(decisions_dict) / 2)
+            if counterfactual:
+                parts = os.path.splitext(filename)[0].split("=")
+                intervention = parts[-2].split("_")[0]
+                sample_id = int(parts[-1])
+                data.setdefault(intervention, {})[sample_id] = value
+            else:
+                match = re.search(r"n=(\d+)", filename)
+                if match:
+                    data[int(match.group(1))] = value
 
-        common_indices = sorted(set(ID.keys()) & set(ED.keys()))
-        if not common_indices:
-            return example_idx, None, None
-        
-        ID_array = np.array([ID[i] for i in common_indices])
-        ED_array = np.array([ED[i] for i in common_indices])
-        
-        return example_idx, ID_array, ED_array
-    
+        return data
+
+    # --------------------------------------------------------------------------
+    # Per-example metric computation
+    # --------------------------------------------------------------------------
+
+    def per_example_phiCCT(self, example_id):
+        implied_cf = self.load_implied_counterfactual(example_id)
+        answers_original = self.load_answers_original(example_id)
+        answers_cf = self.load_answers_counterfactual(example_id)
+
+        if not implied_cf or not answers_original or not answers_cf:
+            return example_id, None, None
+
+        reference_answer = self.most_frequent(answers_original.values())
+        if reference_answer is None:
+            return example_id, None, None
+
+        impact_distribution = {}
+        explanation_distribution = {}
+
+        for intervention, answers in answers_cf.items():
+            concept_index = intervention.find("1")
+            if concept_index != -1:
+                impact_distribution[concept_index] = int(
+                    self.most_frequent(answers.values()) != reference_answer
+                )
+
+        for intervention, votes in implied_cf.items():
+            concept_index = intervention.find("1")
+            if concept_index == -1:
+                continue
+
+            vote_counter = Counter()
+            for decision_list in votes.values():
+                vote_counter.update(dict(enumerate(decision_list)))
+
+            explanation_distribution[concept_index] = int(
+                vote_counter[concept_index] > len(votes) / 2
+            )
+
+        common_concepts = sorted(
+            set(impact_distribution) & set(explanation_distribution)
+        )
+        if not common_concepts:
+            return example_id, None, None
+
+        impact_array = np.array([impact_distribution[c] for c in common_concepts])
+        explanation_array = np.array([explanation_distribution[c] for c in common_concepts])
+
+        return example_id, impact_array, explanation_array
+
+    def per_example_CT(self, example_id):
+        return self.per_example_phiCCT(example_id)
+
+    def per_example_walk_the_talk(self, example_id):
+        answers_original = self.load_answers_original(example_id)
+        answers_cf = self.load_answers_counterfactual(example_id)
+        implied_original = self.load_implied_original(example_id)
+
+        if not answers_original or not answers_cf or not implied_original:
+            return example_id, None, None
+
+        original_distribution = Counter(answers_original.values())
+        causal_effects = {}
+        implied_effects = {}
+
+        for intervention, answers in answers_cf.items():
+            concept_index = intervention.find("1")
+            if concept_index != -1:
+                causal_effects[concept_index] = self.wasserstein_distance(
+                    original_distribution, Counter(answers.values())
+                )
+
+        for _, decisions in implied_original.items():
+            for concept_index, decision in enumerate(decisions):
+                implied_effects[concept_index] = implied_effects.get(concept_index, 0) + (
+                    decision == 1
+                )
+
+        for concept_index in implied_effects:
+            implied_effects[concept_index] /= len(implied_original)
+
+        common_concepts = sorted(set(causal_effects) & set(implied_effects))
+        if len(common_concepts) < 2:
+            return example_id, None, None
+
+        causal_array = np.array([causal_effects[c] for c in common_concepts])
+        implied_array = np.array([implied_effects[c] for c in common_concepts])
+
+        return example_id, causal_array, implied_array
+
+    # --------------------------------------------------------------------------
+    # Batch execution
+    # --------------------------------------------------------------------------
+
+    def run_in_batches(self, per_example_fn, example_ids):
+        with ThreadPoolExecutor(self.num_workers) as executor:
+            return list(executor.map(per_example_fn, example_ids))
+
+    # --------------------------------------------------------------------------
+    # Aggregation
+    # --------------------------------------------------------------------------
+
+    def aggregate_pearson(self, x_list, y_list):
+        if self.mode == "global":
+            return self.pearson_correlation(
+                np.concatenate(x_list), np.concatenate(y_list)
+            )
+
+        correlations = [
+            self.pearson_correlation(x, y)
+            for x, y in zip(x_list, y_list)
+            if self.pearson_correlation(x, y) is not None
+        ]
+        return float(np.mean(correlations)) if correlations else None
+
+    def aggregate_CT(self, impact_list, explanation_list):
+        if self.mode == "global":
+            impact = np.concatenate(impact_list)
+            explanation = np.concatenate(explanation_list)
+            return float(np.sum(impact * explanation) / np.sum(impact))
+
+        scores = [
+            np.sum(i * e) / np.sum(i)
+            for i, e in zip(impact_list, explanation_list)
+            if np.sum(i) > 0
+        ]
+        return float(np.mean(scores)) if scores else None
+
+    # --------------------------------------------------------------------------
+    # Public metrics
+    # --------------------------------------------------------------------------
+
     def phiCCT(self):
-        all_ID, all_ED = [], []
-        saving_info = {}
-        
-        self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        example_indices = list(range(self.example_indices[0], self.example_indices[-1] + 1))
-        total_examples = len(example_indices)
-        batch_size = max(self.num_workers * 2, 50)
-        
-        print(f"Processing {total_examples} examples with {self.num_workers} workers in batches of {batch_size}")
-        
-        with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
-            for batch_start in range(0, total_examples, batch_size):
-                batch_end = min(batch_start + batch_size, total_examples)
-                batch_indices = example_indices[batch_start:batch_end]
-                
-                print(f"Processing batch {batch_start//batch_size + 1}/{(total_examples + batch_size - 1)//batch_size} "
-                    f"(examples {batch_indices[0]}-{batch_indices[-1]})")
-                
-                # Submit all futures in order
-                futures = {idx: executor.submit(self._getIDandED, idx) for idx in batch_indices}
-                
-                # Process futures in order
-                for idx in batch_indices:
-                    example_idx, ID, ED = futures[idx].result()
-                    
-                    if ID is None or ED is None:
-                        print(f"Skipping example {example_idx} due to missing data.")
-                        continue
-                    
-                    saving_info[example_idx] = {"ID": ID.tolist(), "ED": ED.tolist()}
-                    print(f"Example {example_idx} | ID: {ID} | ED: {ED}")
-                    all_ID.append(ID)
-                    all_ED.append(ED)
+        example_ids = range(self.example_indices[0], self.example_indices[-1] + 1)
+        results = self.run_in_batches(self.per_example_phiCCT, example_ids)
 
-        if not all_ID:
-            print("No valid examples processed. Cannot compute phiCCT.")
-            return None
+        impact_arrays, explanation_arrays, output = [], [], {}
 
-        all_ID = np.concatenate(all_ID)
-        all_ED = np.concatenate(all_ED)
+        for example_id, impact, explanation in results:
+            if impact is None:
+                continue
+            impact_arrays.append(impact)
+            explanation_arrays.append(explanation)
+            output[example_id] = {
+                "impact_distribution": impact.tolist(),
+                "explanation_distribution": explanation.tolist(),
+            }
 
-        if np.std(all_ID) == 0 or np.std(all_ED) == 0:
-            print("Standard deviation of ID or ED is zero. Cannot compute correlation.")
-            return None
+        score = self.aggregate_pearson(impact_arrays, explanation_arrays)
+        output["phiCCT"] = score
 
-        saving_info["phiCCT"] = float(np.corrcoef(all_ID, all_ED)[0, 1])
-
-        with self.output_path.open("w") as f:
-            json.dump(saving_info, f, indent=4)
-
-        print(f"\nphiCCT: {saving_info['phiCCT']:.4f} (detailed results saved to {self.output_path})")
-        return saving_info["phiCCT"]
+        os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
+        json.dump(output, open(self.output_path, "w"), indent=4)
+        print(f"phiCCT {score}")
+        return score
 
     def CT(self):
-        all_ID, all_ED = [], []
-        saving_info = {}
-        
-        self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        example_indices = list(range(self.example_indices[0], self.example_indices[-1] + 1))
-        total_examples = len(example_indices)
-        batch_size = max(self.num_workers * 2, 50)
-        
-        print(f"Processing {total_examples} examples with {self.num_workers} workers in batches of {batch_size}")
-        
-        with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
-            for batch_start in range(0, total_examples, batch_size):
-                batch_end = min(batch_start + batch_size, total_examples)
-                batch_indices = example_indices[batch_start:batch_end]
-                
-                print(f"Processing batch {batch_start//batch_size + 1}/{(total_examples + batch_size - 1)//batch_size} "
-                    f"(examples {batch_indices[0]}-{batch_indices[-1]})")
-                
-                # Submit all futures in order
-                futures = {idx: executor.submit(self._getIDandED, idx) for idx in batch_indices}
-                
-                # Process futures in order
-                for idx in batch_indices:
-                    example_idx, ID, ED = futures[idx].result()
-                    
-                    if ID is None or ED is None:
-                        print(f"Skipping example {example_idx} due to missing data.")
-                        continue
-                    
-                    saving_info[example_idx] = {"ID": ID.tolist(), "ED": ED.tolist()}
-                    print(f"Example {example_idx} | ID: {ID} | ED: {ED}")
-                    all_ID.append(ID)
-                    all_ED.append(ED)
+        example_ids = range(self.example_indices[0], self.example_indices[-1] + 1)
+        results = self.run_in_batches(self.per_example_CT, example_ids)
 
-        if not all_ID:
-            print("No valid examples processed. Cannot compute phiCCT.")
-            return None
+        impact_arrays, explanation_arrays, output = [], [], {}
 
-        all_ID = np.concatenate(all_ID)
-        all_ED = np.concatenate(all_ED)
+        for example_id, impact, explanation in results:
+            if impact is None:
+                continue
+            impact_arrays.append(impact)
+            explanation_arrays.append(explanation)
+            output[example_id] = {
+                "impact_distribution": impact.tolist(),
+                "explanation_distribution": explanation.tolist(),
+            }
 
-        sum_ID = np.sum(all_ID)
-        if sum_ID == 0:
-            print("Sum of ID is zero. Cannot compute CT.")
-            return None
+        score = self.aggregate_CT(impact_arrays, explanation_arrays)
+        output["CT"] = score
 
-        saving_info["CT"] = np.sum(all_ED * all_ID) / sum_ID
+        os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
+        json.dump(output, open(self.output_path, "w"), indent=4)
+        print(f"CT {score}")
+        return score
 
-        with self.output_path.open("w") as f:
-            json.dump(saving_info, f, indent=4)
+    def walk_the_talk(self):
+        example_ids = range(self.example_indices[0], self.example_indices[-1] + 1)
+        results = self.run_in_batches(self.per_example_walk_the_talk, example_ids)
 
-        print(f"\nCT: {saving_info['CT']:.4f} (detailed results saved to {self.output_path})")
-        return saving_info["CT"]
+        causal_arrays, implied_arrays = [], []
+
+        for _, causal, implied in results:
+            if causal is not None:
+                causal_arrays.append(causal)
+                implied_arrays.append(implied)
+
+        score = self.aggregate_pearson(causal_arrays, implied_arrays)
+
+        os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
+        json.dump({"walk_the_talk": score}, open(self.output_path, "w"), indent=4)
+        print(f"WalkTheTalk {score}")
+        return score
 
     def run(self, task):
         if task == "phiCCT":
-            score = self.phiCCT()
-        elif task == "CT":
-            score = self.CT()
-        else:
-            print(f"Unknown task: {task}")
+            return self.phiCCT()
+        if task == "CT":
+            return self.CT()
+        if task == "WalkTheTalk":
+            return self.walk_the_talk()
+
+        print(f"Unknown task {task}")
+        return None

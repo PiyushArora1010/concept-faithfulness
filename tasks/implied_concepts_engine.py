@@ -167,12 +167,30 @@ class ImpliedConceptsEngine(Engine):
                 print(f"No responses found for example {example_idx} in {sub_dir}. Skipping...")
                 continue
 
+            concept_path = os.path.join(
+                self.intervention_dir,
+                f"example_{example_idx}",
+                "concepts.json"
+            )
+            if not os.path.exists(concept_path):
+                print(f"No concepts found for example {example_idx}. Skipping...")
+                continue
+
             with open(os.path.join(
                 self.intervention_dir,
                 f"example_{example_idx}",
                 "concepts.json"
             ), 'r') as f:
                 concepts = json.load(f)
+            
+            concept_settings_path = os.path.join(
+                self.intervention_dir,
+                f"example_{example_idx}",
+                "concept_settings.json"
+            )
+            if not os.path.exists(concept_settings_path):
+                print(f"No concept settings found for example {example_idx}. Skipping...")
+                continue
             
             with open(os.path.join(
                 self.intervention_dir,
@@ -207,6 +225,10 @@ class ImpliedConceptsEngine(Engine):
                 with open(os.path.join(response_dir, response_file), 'r') as f:
                     response_data = json.load(f)
                 response_dict[response_file] = response_data
+            
+            if len(response_dict) == 0:
+                print(f"No responses found for example {example_idx} in {sub_dir}. Skipping...")
+                continue
             
             example_indices_batch.append(example_idx)
             example_concepts_batch.append(concepts)

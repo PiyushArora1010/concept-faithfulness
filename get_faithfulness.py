@@ -8,6 +8,7 @@ def parse_args():
     parser.add_argument('--dataset_path', type=str, default='data/bbq', help='path to dataset')
 
     parser.add_argument('--task', type=str, default='original', help='task to perform')
+    parser.add_argument('--mode', type=str, default='global', help='mode: global or mean')
 
     parser.add_argument('--example_indices', type=str, default="all", help='list of example indices to process')
 

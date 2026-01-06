@@ -185,6 +185,10 @@ class ModelResponseEngine(Engine):
                 f"example_{example_idx}"
             )
             
+            if not os.path.exists(intervention_file_dir):
+                print(f"No intervention files found for example {example_idx}. Skipping...")
+                continue
+            
             all_intervention_files = [f for f in sorted(os.listdir(intervention_file_dir)) if f.startswith("counterfactual_")]
             parsed_counterfactuals = []
             parsed_intervention_files = []
