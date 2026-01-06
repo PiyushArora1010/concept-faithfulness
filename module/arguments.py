@@ -2,6 +2,8 @@ import argparse
 
 def faithfulness_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--module', type=str, default='faithfulness', help='module name')
+    
     parser.add_argument('--dataset', type=str, default='bbq', help='dataset name')
     parser.add_argument('--dataset_path', type=str, default='data/bbq', help='path to dataset')
 
@@ -19,6 +21,8 @@ def faithfulness_args():
 
 def common_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--module', type=str, default='common', help='module name')
+    
     parser.add_argument('--dataset', type=str, default='bbq', help='dataset name')
     parser.add_argument('--dataset_path', type=str, default='data/bbq', help='path to dataset')
 

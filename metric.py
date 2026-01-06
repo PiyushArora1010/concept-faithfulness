@@ -1,10 +1,4 @@
 import argparse
-
-from tasks.faithfulness_engine import FaithfulnessEngine
-from tasks.concept_intervention_engine import ConceptInterventionEngine
-from tasks.model_response_engine import ModelResponseEngine
-from tasks.implied_concepts_engine import ImpliedConceptsEngine
-
 from module.arguments import argumentDic
 
 def parse_args():
@@ -21,12 +15,16 @@ if __name__ == '__main__':
     args = parse_args()
     
     if args.module == "faithfulness":
+        from tasks.faithfulness_engine import FaithfulnessEngine
         engine = FaithfulnessEngine(args)
     elif args.module == "concept_intervention":
+        from tasks.concept_intervention_engine import ConceptInterventionEngine
         engine = ConceptInterventionEngine(args)
     elif args.module == "model_response":
+        from tasks.model_response_engine import ModelResponseEngine
         engine = ModelResponseEngine(args)
     elif args.module == "implied_concepts":
+        from tasks.implied_concepts_engine import ImpliedConceptsEngine
         engine = ImpliedConceptsEngine(args)
     else:
         raise ValueError(f"Unknown module: {args.module}")
