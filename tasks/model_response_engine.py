@@ -10,7 +10,9 @@ class ModelResponseEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
         self.prompting_strategy = PromptingStrategy(args.cot, args.few_shot, False, args.few_shot_prompt_name, False)
-        self.output_dir = os.path.join("model_responses", args.output_dir)
+        self.output_dir = os.path.join(
+            "results", "model_responses", self.dataset_tag, args.output_dir
+        )
         self._get_model()
         
     def _get_original_responses_batch(self, example_indices):
@@ -61,7 +63,8 @@ class ModelResponseEngine(Engine):
                         "prompt": prompts[global_cnt],
                         "response": response
                     }
-                    file_path = "error_" + file_path
+
+                    file_path = os.path.join("errors", *os.path.normpath(file_path).split(os.path.sep)[1:])
                     os.makedirs(os.path.dirname(file_path), exist_ok=True)
                     with open(file_path, 'w') as f:
                         json.dump(answer_dict, f, indent=4)
@@ -146,7 +149,8 @@ class ModelResponseEngine(Engine):
                             "prompt": prompts[global_cnt],
                             "response": response,
                         }
-                        file_path = "error_" + file_path
+
+                        file_path = os.path.join("errors", *os.path.normpath(file_path).split(os.path.sep)[1:])
                         os.makedirs(os.path.dirname(file_path), exist_ok=True)
                         with open(file_path, 'w') as f:
                             json.dump(answer_dict, f, indent=4)

@@ -13,7 +13,7 @@ class FaithfulnessEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
         self.output_path = os.path.join(
-            "faithfulness_scores", f"{args.output_path}.json"
+            "results", "faithfulness_scores", self.dataset_tag, f"{args.output_path}.json"
         )
         self.num_workers = getattr(args, "num_workers", os.cpu_count())
         self.mode = getattr(args, "mode", "global")

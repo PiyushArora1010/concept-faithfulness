@@ -9,7 +9,9 @@ from tasks.engine import Engine
 class ConceptInterventionEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
-        self.output_dir = os.path.join("concept_outputs", args.output_dir)
+        self.output_dir = os.path.join(
+            "results", "concept_outputs", self.dataset_tag, args.output_dir
+        )
         self._get_model()
 
     def _get_concept_ids_batch(self, example_indices):
@@ -48,8 +50,7 @@ class ConceptInterventionEngine(Engine):
                 print(f"Saved concepts and categories for example {example_idx} to {concept_path} and {category_path}.")
                 
             except Exception as e:
-                concept_path = "error_" + concept_path
-                
+                concept_path = os.path.join("errors", *os.path.normpath(concept_path).split(os.path.sep)[1:])
                 os.makedirs(os.path.dirname(concept_path), exist_ok=True)
                 
                 with open(concept_path, 'w') as f:
@@ -123,7 +124,7 @@ class ConceptInterventionEngine(Engine):
                     
                 print(f"Saved concept settings for example {example_idx} to {concept_settings_path}.")
             except Exception as e:
-                concept_settings_path = "error_" + concept_settings_path
+                concept_settings_path = os.path.join("errors", *os.path.normpath(concept_settings_path).split(os.path.sep)[1:])
                 
                 os.makedirs(os.path.dirname(concept_settings_path), exist_ok=True)
                 
@@ -219,7 +220,7 @@ class ConceptInterventionEngine(Engine):
                 counterfactual_gen_dic["counterfactual"] = s
                 counterfactual_gen_dic["parsed_counterfactual"] = {}
 
-                output_path = "error_" + output_path
+                output_path = os.path.join("errors", *os.path.normpath(output_path).split(os.path.sep)[1:])
                 
                 os.makedirs(os.path.dirname(output_path), exist_ok=True)
                 
