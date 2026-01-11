@@ -60,6 +60,7 @@ def concept_args(extra_args=None):
     parser.add_argument('--concept_id_base_prompt_name', type=str, default='concept_id_prompt')
     parser.add_argument('--concept_values_base_prompt_name', type=str, default='concept_values_prompt')
     parser.add_argument('--counterfactual_gen_base_prompt_name', type=str, default='counterfactual_gen_removals_prompt')
+    parser.add_argument('--exclude_question_in_prompt', action='store_true')
     parser.add_argument('--include_unknown_concept_values', action='store_true')
 
     return parser.parse_args(extra_args)

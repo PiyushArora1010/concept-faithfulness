@@ -16,6 +16,7 @@ logs/
 cache_paths.sh
 exp_*.py
 
+*.tar.gz
 vllm
 *.o*
 *.pbs
