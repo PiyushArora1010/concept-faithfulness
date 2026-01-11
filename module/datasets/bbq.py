@@ -34,15 +34,16 @@ class BBQDataset(Dataset):
             prompt = f"""{row["context"]} {evidence}{sep}{row["question"]}{sep}Answer choices:{sep}(A) {row["ans0"]}{sep}(B) {row["ans1"]}{sep}(C) {row["ans2"]}"""
         return prompt
     
-    def format_question_info(self, idx, context_idx=0, context_ans=False):
+    def format_question_info(self, idx, include_question=True, context_idx=0, context_ans=False):
         row = self.data[idx]
         evidence = row["weak_evidence"][context_idx]
         question_info = f"Context: {row['context']} {evidence}\n"
-        question_info += f"Question: {row['question']}\n"
-        if context_ans:
-            question_info += f"Answer choices:\n(A) {row['ans0'][context_idx]}\n(B) {row['ans1'][context_idx]}\n(C) {row['ans2'][context_idx]}\n"
-        else:
-            question_info += f"Answer choices:\n(A) {row['ans0']}\n(B) {row['ans1']}\n(C) {row['ans2']}\n"
+        if include_question:
+            question_info += f"Question: {row['question']}\n"
+            if context_ans:
+                question_info += f"Answer choices:\n(A) {row['ans0'][context_idx]}\n(B) {row['ans1'][context_idx]}\n(C) {row['ans2'][context_idx]}\n"
+            else:
+                question_info += f"Answer choices:\n(A) {row['ans0']}\n(B) {row['ans1']}\n(C) {row['ans2']}\n"
         return question_info
     
     def parse_counterfactual_output(self, counterfactual_output, includes_quality_checks=False):

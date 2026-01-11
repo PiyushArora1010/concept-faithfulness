@@ -37,19 +37,19 @@ class Dataset:
         """
         raise NotImplementedError
     
-    def format_prompt_concept_id(self, idx, concept_id_base_prompt_name, context_idx=0):
+    def format_prompt_concept_id(self, idx, concept_id_base_prompt_name, include_question, context_idx=0):
         with open(os.path.join(self.dataset_path, f"{concept_id_base_prompt_name}.txt"), "r") as f:  
             concept_id_few_shot_exemplar = f.read()
         instruction = concept_id_few_shot_exemplar
-        instruction += self.format_question_info(idx, context_idx)
+        instruction += self.format_question_info(idx, include_question, context_idx)
         instruction += "Concept List:\n"
         return instruction
     
-    def format_prompt_concept_values(self, idx, concept_values_base_prompt_name, concepts, context_idx=0):
+    def format_prompt_concept_values(self, idx, concept_values_base_prompt_name, include_question, concepts, context_idx=0):
         with open(os.path.join(self.dataset_path, f"{concept_values_base_prompt_name}.txt"), "r") as f:  
             concept_values_few_shot_exemplar = f.read()
         instruction = concept_values_few_shot_exemplar
-        instruction += self.format_question_info(idx, context_idx)
+        instruction += self.format_question_info(idx, include_question, context_idx)
         instruction += "Concept List:\n"
         concept_str = "\n".join([f"{i+1}. {concept}" for i, concept in enumerate(concepts)])
         instruction += concept_str
@@ -60,7 +60,7 @@ class Dataset:
         with open(os.path.join(self.dataset_path, f"{counterfactual_base_prompt_name}.txt"), "r") as f:  
             counterfactual_few_shot_exemplar = f.read()
         instruction = counterfactual_few_shot_exemplar
-        instruction += self.format_question_info(idx, context_idx)
+        instruction += self.format_question_info(idx, True, context_idx)
         instruction += "Concept List:\n"
         concept_str = "\n".join([f"{i+1}. {concept}" for i, concept in enumerate(concepts)])
         instruction += concept_str

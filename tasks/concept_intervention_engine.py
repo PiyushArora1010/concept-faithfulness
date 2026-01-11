@@ -19,7 +19,8 @@ class ConceptInterventionEngine(Engine):
         for cnt, example_idx in enumerate(example_indices):
             prompt = self.dataset.format_prompt_concept_id(
                 example_idx,
-                self.concept_id_base_prompt_name
+                self.concept_id_base_prompt_name,
+                not self.exclude_question_in_prompt
             )
             prompts.append(prompt)
         
@@ -93,6 +94,7 @@ class ConceptInterventionEngine(Engine):
             prompt = self.dataset.format_prompt_concept_values(
                 example_idx,
                 self.concept_values_base_prompt_name,
+                not self.exclude_question_in_prompt,
                 concepts
             )
             prompts.append(prompt)
