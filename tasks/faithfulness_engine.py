@@ -288,6 +288,7 @@ class FaithfulnessEngine(Engine):
         valid_count = 0
         for example_id, impact, explanation in results:
             if impact is None:
+                print(f"Skipping example {example_id} due to missing data")
                 continue
             impact_arrays.append(impact)
             explanation_arrays.append(explanation)

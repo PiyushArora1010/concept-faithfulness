@@ -4,6 +4,8 @@ from module.models import Model
 from module.datasets.bbq import BBQDataset
 from module.datasets.medqa import MedQADataset
 
+import torch
+
 def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4, thinking=False):
     if model_tag == "Llama3.2_1B":
         return Model(name="meta-llama/Llama-3.2-1B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
@@ -22,7 +24,6 @@ def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4,
     else:
         raise ValueError(f"Unsupported model name: {model_tag}")
     
-
 def get_dataset(dataset_name, dataset_path):
     if dataset_name == "bbq":
         return BBQDataset(dataset_name, dataset_path)
@@ -142,7 +143,6 @@ def enumerate_interventions_helper(intervention_list, intervention_str, factors,
         for idx in range(len(factor_settings[len(intervention_str)]["new_settings"])):
             enumerate_interventions_helper(intervention_list, intervention_str + str(idx+1), factors, factor_settings, k_hop)
 
-
 def enumerate_interventions(factors, factor_settings, k_hop=None, include_no_intervention=True, mark_removals=True):
     """
     Enumerates all possible interventions.
@@ -217,6 +217,27 @@ def parse_llm_response_implied_concepts(response, n_concepts):
         parsed_fds.append(1 if "(YES)" in concept_decision.upper() else 0)
     
     return parsed_fds, response
+
+def get_specific_layer_names(model, target_modules, key):
+    layer_names = []
+    if "all-linear" in target_modules:
+        target_modules = "all-linear"
+
+    for name, module in model.named_modules():
+        # skip anything that doesn't match the key
+        if key not in name:
+            continue
+
+        # special mode: grab all Linear layers
+        if isinstance(target_modules, str) and target_modules == "all-linear":
+            if isinstance(module, nn.Linear):
+                layer_names.append(name)
+        else:
+            # original behavior: match any of the target_modules substrings
+            if any(tm in name for tm in target_modules):
+                layer_names.append(name)
+
+    return set(layer_names)
 
 class PromptingStrategy:
     def __init__(self, cot, few_shot, knn_rank, few_shot_prompt_name=None, add_instr=None):
