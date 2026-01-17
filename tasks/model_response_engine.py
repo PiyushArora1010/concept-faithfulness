@@ -9,7 +9,7 @@ from tasks.engine import Engine
 class ModelResponseEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
-        self.prompting_strategy = PromptingStrategy(args.cot, args.few_shot, False, args.few_shot_prompt_name, False)
+        self.prompting_strategy = PromptingStrategy(args.cot, args.few_shot, args.knn_rank, args.few_shot_prompt_name, args.add_instr)
         self.output_dir = os.path.join(
             "results", "model_responses", self.dataset_tag, args.output_dir
         )

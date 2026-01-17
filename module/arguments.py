@@ -51,6 +51,34 @@ def common_args(module_name):
 
     return parser
 
+def train_args():
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--train_size', type=float, default=0.7)
+    parser.add_argument('--val_size', type=float, default=0.15)
+    
+    parser.add_argument('--cot', action='store_true')
+    parser.add_argument('--add_instr', type=str, default=None)
+    parser.add_argument('--knn_rank', action='store_true')
+    parser.add_argument('--few_shot', action='store_true')
+    parser.add_argument('--few_shot_prompt_name', type=str, default='few_shot_cot_prompt')
+    
+    parser.add_argument('--implied_concepts_base_prompt_name', type=str, default='implied_concepts_prompt')
+    
+    parser.add_argument('--model_tag', type=str, default='Qwen3_8B')
+    parser.add_argument('--model_max_tokens', type=int, default=512)
+    parser.add_argument('--lora', action='store_true')
+    parser.add_argument('--lora_rank', type=int, default=16)
+    
+    parser.add_argument('--dataset', type=str, default='bbq')
+    parser.add_argument('--dataset_path', type=str, default='data/bbq')
+    parser.add_argument('--example_indices', type=str, default='all')
+    parser.add_argument('--counterfactual_data_path', type=str, default=None)
+    parser.add_argument('--response_data_path', type=str, default=None)
+    parser.add_argument('--max_examples', type=int, default=100)
+    
+    return parser.parse_args()
+    
 
 def concept_args(extra_args=None):
     base = common_args("concept_intervention")
@@ -73,6 +101,8 @@ def response_args(extra_args=None):
     parser.add_argument('--cot', action='store_true')
     parser.add_argument('--few_shot', action='store_true')
     parser.add_argument('--few_shot_prompt_name', type=str, default='few_shot_cot_prompt')
+    parser.add_argument('--add_instr', type=str, default=None)
+    parser.add_argument('--knn_rank', action='store_true')
     parser.add_argument('--n_completions', type=int, default=50)
     parser.add_argument('--intervention_dir', type=str, default='output')
 
