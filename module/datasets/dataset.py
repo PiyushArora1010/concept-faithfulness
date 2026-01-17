@@ -243,7 +243,7 @@ def HF_Dataset(
 
 
     counterfactual_files = glob.glob(
-        os.path.join(counterfactual_data_path, "example_*", "counterfactual_*.json")
+        os.path.join(counterfactual_data_path, "example_*", "counterfactual_*1*.json")
     )
 
     samples = []

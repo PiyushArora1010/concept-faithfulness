@@ -1,9 +1,10 @@
 import os
+import sys
 import random
 
 from tasks.engine import Engine
 from module.datasets.dataset import HF_Dataset
-from module.utils import PromptingStrategy, parse_llm_response_implied_concepts
+from module.utils import get_language_model, PromptingStrategy, parse_llm_response_implied_concepts
 
 import torch
 # from unsloth import FastLanguageModel
@@ -93,13 +94,17 @@ class TrainEngine(Engine):
             answer = "N/A"
         return answer
 
-    def _get_implied_concepts(self, responses_list, answers_list, example_indices_batch, concept_list_batch, concept_values_batch, intervention_dict_batch):
+    def _get_answers_from_responses(self, responses_list, example_indices_batch):
+        answers = [[self._get_answer_from_response(response, example_indices_batch[idx]) for response in responses_list[idx]] for idx in range(len(responses_list))]
+        mask = [[True if answer != "N/A" else False for answer in answers[idx]] for idx in range(len(answers))]
+        return answers, mask
+
+    def _get_implied_concepts(self, responses_list, answers_list, concept_list_batch, concept_values_batch, intervention_dict_batch):
         implied_concepts_batch = []
+        mask = []
         concepts_to_check_len = []
         prompts = []
         for index, responses in enumerate(responses_list):
-            
-            example_idx = example_indices_batch[index]
             concepts = concept_list_batch[index]
             concept_values = concept_values_batch[index]
             intervention_dict = intervention_dict_batch[index]
@@ -109,8 +114,7 @@ class TrainEngine(Engine):
             
             concepts_to_check = concepts
             values_concepts_to_check = concept_values
-            
-            intervention = intervention_dict["intervention_str"]
+
             basic_prompt = self.dataset.format_question_counterfactual(
                 intervention_dict["parsed_counterfactual"],
                 double_space=False
@@ -133,34 +137,35 @@ class TrainEngine(Engine):
                 concepts_to_check_len.append(len(concepts_to_check))
                 
         # BATCH INFERENCE
-        implied_concepts_responses = self.implied_model(prompts)
+        implied_concepts_responses = self.implied_model.batch_generate_response(prompts)
         
         for index, responses in enumerate(responses_list):
-            intervention_str = intervention_dict_batch[index]["intervention_str"]
-            intervented_concept = intervention_str.find("1")
-            
-            decisions = []
+            intervented_concept = intervention_dict_batch[index]["intervention_str"].find("1")
+
+            # decisions = []
+            implied_concepts_batch.append([])
+            mask.append([])
             for response_index, response in enumerate(responses):
                 global_index = index * len(responses) + response_index
                 len_concepts = concepts_to_check_len[global_index]
                 
                 try:
-                    concept_decision, parsed_response = parse_llm_response_implied_concepts(
-                        response,
+                    concept_decision, _ = parse_llm_response_implied_concepts(
+                        implied_concepts_responses[global_index],
                         len_concepts
                     )
+                    mask[-1].append(True)
                 except:
-                    concept_decision = ["N/A"] * len_concepts
-                    
-                decisions.append(1 if concept_decision[intervented_concept] == 1 else 0)
-            implied_concepts_batch.append(decisions)
-            
-        return implied_concepts_batch
+                    concept_decision = [random.choice([0, 1]) for _ in range(len_concepts)]
+                    mask[-1].append(False)
+
+                implied_concepts_batch[-1].append(1 if concept_decision[intervented_concept] == 1 else 0)
+
+        return implied_concepts_batch, mask
     
-    def _get_successful_interventions(self, answers_list, original_answers, example_indices_batch):
+    def _get_successful_interventions(self, answers_list, original_answers):
         successful_interventions_batch = []
         for index, answers in enumerate(answers_list):
-            example_idx = example_indices_batch[index]
             original_answer = original_answers[index]
             successful_interventions = []
             for answer in answers:
@@ -183,19 +188,16 @@ class TrainEngine(Engine):
         return rewards_batch
     
     def _get_implied_model(self):
-        self.implied_model = self.input_from_me
-    
-    def input_from_me(self, prompts):
-        responses = []
-        for prompt in prompts:
-            print("Prompt:")
-            print(prompt)
-            response = input("Enter model response: ")
-            responses.append(response)
-        return responses
+        self.implied_model = get_language_model(
+            self.implied_model_tag, 
+            max_tokens=self.implied_model_max_tokens, 
+            temperature=self.implied_model_temperature,
+            batch_size=self.implied_model_batch_size,
+            thinking=self.implied_model_thinking
+        )
     
     def _checking_reward_function(self, indices):
-        responses_per_intervention = 2
+        responses_per_intervention = 1
         
         example_indices_batch = []
         responses_list = []
@@ -224,12 +226,12 @@ class TrainEngine(Engine):
             responses_list.extend([response] * responses_per_intervention)
             
         responses_list = [responses_list[i:i + responses_per_intervention] for i in range(0, len(responses_list), responses_per_intervention)]
-        answers_list = [[self._get_answer_from_response(response, example_indices_batch[idx]) for response in responses_list[idx]] for idx in range(len(responses_list))]
         
-        implied_concepts_batch = self._get_implied_concepts(
+        answers_list, answers_mask = self._get_answers_from_responses(responses_list, example_indices_batch)
+        
+        implied_concepts_batch, implied_concepts_mask = self._get_implied_concepts(
             responses_list,
             answers_list,
-            example_indices_batch,
             concepts_list_batch,
             concept_values_list_batch,
             intervention_dict_batch
@@ -237,17 +239,23 @@ class TrainEngine(Engine):
         successful_interventions_batch = self._get_successful_interventions(
             answers_list,
             original_answers,
-            example_indices_batch
         )
         rewards_batch = self._phiCCT_reward(
             implied_concepts_batch,
             successful_interventions_batch
         )
         
-        print("Rewards:")
-        for idx, rewards in zip(example_indices_batch, rewards_batch):
-            print(f"Example ID: {idx}, Rewards: {rewards}")
-        
-        
-        
+        # print results
+        for i, index in enumerate(indices):
+            print(f"Results for Example ID: {example_indices_batch[i]}")
+            print(f"Intervention: {intervention_dict_batch[i]['intervention_str']}")
+            for j in range(responses_per_intervention):
+                print(f"Response {j+1}: {responses_list[i][j]}")
+                print(f"Answer: {answers_list[i][j]} (Mask: {answers_mask[i][j]})")
+                print(f"Implied Concept: {implied_concepts_batch[i][j]} (Mask: {implied_concepts_mask[i][j]})")
+                print(f"Successful Intervention: {successful_interventions_batch[i][j]}")
+                print(f"Reward: {rewards_batch[i][j]}")
+                print(f"Mask: {implied_concepts_mask[i][j]}")
+                print("-----")
+            print("=========")
         

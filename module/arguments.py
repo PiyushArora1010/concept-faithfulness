@@ -57,19 +57,33 @@ def train_args():
     parser.add_argument('--train_size', type=float, default=0.7)
     parser.add_argument('--val_size', type=float, default=0.15)
     
+    # Prompt to get model response
     parser.add_argument('--cot', action='store_true')
     parser.add_argument('--add_instr', type=str, default=None)
     parser.add_argument('--knn_rank', action='store_true')
     parser.add_argument('--few_shot', action='store_true')
     parser.add_argument('--few_shot_prompt_name', type=str, default='few_shot_cot_prompt')
     
+    # Implied concepts model settings
     parser.add_argument('--implied_concepts_base_prompt_name', type=str, default='implied_concepts_prompt')
+    parser.add_argument('--implied_model_tag', type=str, default='Qwen3_32B')
+    parser.add_argument('--implied_model_max_tokens', type=int, default=512)
+    parser.add_argument('--implied_model_temperature', type=float, default=0)
+    parser.add_argument('--implied_model_batch_size', type=int, default=8)
+    parser.add_argument('--implied_model_thinking', action='store_true')
     
+    # Model settings
     parser.add_argument('--model_tag', type=str, default='Qwen3_8B')
     parser.add_argument('--model_max_tokens', type=int, default=512)
+    parser.add_argument('--model_temperature', type=float, default=0)
+    parser.add_argument('--model_batch_size', type=int, default=8)
+    parser.add_argument('--model_thinking', action='store_true')
+    
+    # LoRA settings
     parser.add_argument('--lora', action='store_true')
     parser.add_argument('--lora_rank', type=int, default=16)
     
+    # Data settings
     parser.add_argument('--dataset', type=str, default='bbq')
     parser.add_argument('--dataset_path', type=str, default='data/bbq')
     parser.add_argument('--example_indices', type=str, default='all')
