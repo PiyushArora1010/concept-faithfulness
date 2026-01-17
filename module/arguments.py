@@ -75,7 +75,7 @@ def train_args():
     # Model settings
     parser.add_argument('--model_tag', type=str, default='Qwen3_8B')
     parser.add_argument('--model_max_tokens', type=int, default=512)
-    parser.add_argument('--model_temperature', type=float, default=0)
+    parser.add_argument('--model_temperature', type=float, default=0.7)
     parser.add_argument('--model_batch_size', type=int, default=8)
     parser.add_argument('--model_thinking', action='store_true')
     

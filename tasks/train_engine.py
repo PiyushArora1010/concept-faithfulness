@@ -15,35 +15,45 @@ class TrainEngine(Engine):
         self.prompting_strategy = PromptingStrategy(args.cot, args.few_shot, args.knn_rank, args.few_shot_prompt_name, args.add_instr)
         self._prepare_datasets()
         self._get_implied_model()
+        self._get_model()
+        
+    # def _get_model(self):
+    #     model, tokenizer = FastLanguageModel.from_pretrained(
+    #         model_name=self.model_tag,
+    #         max_seq_length=self.model_max_tokens,
+    #         load_in_4bit=False,  # False for LoRA 16bit
+    #         fast_inference=True,  # Enable vLLM fast inference
+    #         max_lora_rank=self.lora_rank,
+    #         gpu_memory_utilization=0.6,  # Reduce if out of memory
+    #     )
+    #     self.model = model
+    #     self.tokenizer = tokenizer
+        
+    #     if self.lora:
+    #         self.model = FastLanguageModel.get_peft_model(
+    #             self.model,
+    #             r=self.lora_rank,  # Choose any number > 0 ! Suggested 8, 16, 32, 64, 128
+    #             target_modules=[
+    #                 "q_proj",
+    #                 "k_proj",
+    #                 "v_proj",
+    #                 "o_proj",
+    #                 "gate_proj",
+    #                 "up_proj",
+    #                 "down_proj",
+    #             ],  # Remove QKVO if out of memory
+    #             lora_alpha=self.lora_rank,
+    #             use_gradient_checkpointing="unsloth",  # Enable long context finetuning
+    #         )
         
     def _get_model(self):
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=self.model_tag,
-            max_seq_length=self.model_max_tokens,
-            load_in_4bit=False,  # False for LoRA 16bit
-            fast_inference=True,  # Enable vLLM fast inference
-            max_lora_rank=self.lora_rank,
-            gpu_memory_utilization=0.6,  # Reduce if out of memory
+        self.model = get_language_model(
+            self.model_tag,
+            max_tokens=self.model_max_tokens,
+            temperature=self.model_temperature,
+            batch_size=self.model_batch_size,
+            thinking=self.model_thinking
         )
-        self.model = model
-        self.tokenizer = tokenizer
-        
-        if self.lora:
-            self.model = FastLanguageModel.get_peft_model(
-                self.model,
-                r=self.lora_rank,  # Choose any number > 0 ! Suggested 8, 16, 32, 64, 128
-                target_modules=[
-                    "q_proj",
-                    "k_proj",
-                    "v_proj",
-                    "o_proj",
-                    "gate_proj",
-                    "up_proj",
-                    "down_proj",
-                ],  # Remove QKVO if out of memory
-                lora_alpha=self.lora_rank,
-                use_gradient_checkpointing="unsloth",  # Enable long context finetuning
-            )
         
     def _prepare_datasets(self):
         num_examples = min(len(self.dataset), self.max_examples)
@@ -205,7 +215,7 @@ class TrainEngine(Engine):
         concepts_list_batch = []
         concept_values_list_batch = []
         intervention_dict_batch = []
-        
+        prompts = []
         for index in indices:
             example = self.train_dataset[index]
             
@@ -215,16 +225,12 @@ class TrainEngine(Engine):
             intervention_dict_batch.append(example["interventions"])
             original_answers.append(example["original_response"])    
             
-            print(f"Example ID: {example['example_id']}")
             prompt = example["prompt"]
-            print("Prompt:")
-            print(prompt)
-            print("Original Answer:")
-            print(example["original_response"])
-            
-            response = input("Enter model response: ")
-            responses_list.extend([response] * responses_per_intervention)
-            
+            prompts.extend([prompt] * responses_per_intervention)
+        
+        # BATCH INFERENCE
+        responses_list = self.model.batch_generate_response(prompts)
+        
         responses_list = [responses_list[i:i + responses_per_intervention] for i in range(0, len(responses_list), responses_per_intervention)]
         
         answers_list, answers_mask = self._get_answers_from_responses(responses_list, example_indices_batch)
