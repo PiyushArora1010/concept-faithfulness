@@ -1,6 +1,8 @@
 import os
+import json
 import asyncio
 import sys
+import re
 import random
 from openai import AsyncOpenAI
 
@@ -10,10 +12,112 @@ from module.utils import get_language_model, PromptingStrategy, parse_llm_respon
 
 import torch
 from unsloth import FastLanguageModel
+from trl import GRPOTrainer
+
+class DecisionMaskedTrainerGRPO(GRPOTrainer):
+    def __init__(self, *args, engine, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.engine = engine
+    
+    def _get_decision_index(self, completion_text, processing_class):
+        answer_found = self.engine.dataset.answer_starting_index(completion_text, self.engine.prompting_strategy)
+
+        if answer_found < 0:
+            return [], []
+
+        encoding = processing_class(
+            completion_text,
+            add_special_tokens=False,
+            return_offsets_mapping=True,
+        )
+
+        offsets = encoding["offset_mapping"]
+        full_ids = encoding["input_ids"]
+
+        answer_token_start = -1
+        for i, (start, end) in enumerate(offsets):
+            if start <= answer_found < end:
+                answer_token_start = i
+                break
+
+        if answer_token_start == -1:
+            return [], []
+
+        explanation_indices = list(range(0, answer_token_start))
+        decision_indices = list(range(answer_token_start, len(full_ids)))
+
+        return explanation_indices, decision_indices
+    
+    def _generate_and_score_completions(self, inputs):
+        outputs = super()._generate_and_score_completions(inputs)
+
+        if self.engine.loss_computed_on == "both":
+            return outputs
+
+        completion_ids = outputs["completion_ids"]
+        completion_mask = outputs["completion_mask"]
+
+        completions_text = self.processing_class.batch_decode(
+            completion_ids, skip_special_tokens=True
+        )
+
+        custom_masks = []
+
+        for i, (comp_text, comp_ids) in enumerate(zip(completions_text, completion_ids)):
+
+            explanation_indices, decision_indices = self._get_decision_index(
+                comp_text, self.processing_class
+            )
+            
+            explanation_indices = [index for index in explanation_indices if index < len(comp_ids)]
+            decision_indices = [index for index in decision_indices if index < len(comp_ids)]
+            
+            custom_mask = torch.zeros_like(comp_ids, dtype=torch.int)
+
+            if decision_indices and explanation_indices:
+                if self.engine.loss_computed_on == "decision":
+                    custom_mask[decision_indices] = 1
+
+                elif self.engine.loss_computed_on == "explanation":
+                    custom_mask[explanation_indices] = 1
+
+            custom_masks.append(custom_mask)
+
+        decision_explanation_mask = torch.stack(custom_masks).to(completion_ids.device)
+
+        outputs["completion_mask"] = completion_mask * decision_explanation_mask
+        
+        if self.engine.debug:
+            final_mask = outputs["completion_mask"]
+            print("\n[DEBUG] ===== GRPO TOKEN MASKING =====")
+            for i in range(min(2, final_mask.shape[0])):
+                mask = final_mask[i]
+                
+                print(f"\n[DEBUG] Sample {i}:")
+                
+                # Get tokens being updated
+                updated_indices = [idx for idx in range(len(mask)) if mask[idx] == 1]
+                if updated_indices:
+                    updated_ids = completion_ids[i][updated_indices]
+                    updated_text = self.processing_class.decode(updated_ids, skip_special_tokens=False)
+                    print(f"[DEBUG] Text being updated (mask=1):")
+                    print(f"{updated_text}")
+                
+                # Get tokens NOT being updated
+                not_updated_indices = [idx for idx in range(len(mask)) if mask[idx] == 0]
+                if not_updated_indices:
+                    not_updated_ids = completion_ids[i][not_updated_indices]
+                    not_updated_text = self.processing_class.decode(not_updated_ids, skip_special_tokens=False)
+                    print(f"\n[DEBUG] Text NOT being updated (mask=0):")
+                    print(f"{not_updated_text}")
+        
+        return outputs
+
 
 class TrainEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
+        os.makedirs(self.output_dir, exist_ok=True)
         self.prompting_strategy = PromptingStrategy(args.cot, args.few_shot, args.knn_rank, args.few_shot_prompt_name, args.add_instr)
         self.implied_client = None
         self._get_implied_client()
@@ -32,6 +136,14 @@ class TrainEngine(Engine):
 
         val_indices = set(random.sample(remaining_indices, val_count))
         test_indices = list(set(remaining_indices) - val_indices)
+
+        file_name = os.path.join(self.output_dir, "data_splits.json")
+        with open(file_name, "w") as f:
+            json.dump({
+                "train_indices": list(train_indices),
+                "val_indices": list(val_indices),
+                "test_indices": list(test_indices),
+            }, f, indent=4)
 
         train_dataset = HF_Dataset(
             dataset=self.dataset,
@@ -74,15 +186,7 @@ class TrainEngine(Engine):
             model = FastLanguageModel.get_peft_model(
                 model,
                 r=self.lora_rank,  # Choose any number > 0 ! Suggested 8, 16, 32, 64, 128
-                target_modules=[
-                    "q_proj",
-                    "k_proj",
-                    "v_proj",
-                    "o_proj",
-                    "gate_proj",
-                    "up_proj",
-                    "down_proj",
-                ],  # Remove QKVO if out of memory
+                target_modules=self.lora_layers,  # Remove QKVO if out of memory
                 lora_alpha=self.lora_rank,
                 use_gradient_checkpointing="unsloth",  # Enable long context finetuning
             )

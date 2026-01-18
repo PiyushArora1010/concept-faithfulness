@@ -17,6 +17,7 @@ unsloth_*/
 logs/
 *.sh
 exp_*.py
+grpo*/
 
 *.tar.gz
 vllm

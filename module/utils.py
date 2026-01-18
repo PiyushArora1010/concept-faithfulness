@@ -1,5 +1,9 @@
+import os
 import re
-import torch
+import numpy as np
+import random
+from numpy.random import RandomState
+from numpy.random import seed as seednp
 
 from module.models import Model
 from module.datasets.bbq import BBQDataset
@@ -7,6 +11,18 @@ from module.datasets.medqa import MedQADataset
 
 import torch
 import torch.distributed as dist
+
+def set_seed(seed: int) -> RandomState:
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False # set to false for reproducibility, True to boost performance
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    torch.cuda.manual_seed(seed)
+    random.seed(seed)
+    random_state = random.getstate()
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+    return random_state
+
 
 def print0(*args, **kwargs):
     if not dist.is_available() or not dist.is_initialized():

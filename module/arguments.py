@@ -68,13 +68,13 @@ def train_args():
     parser.add_argument('--implied_concepts_base_prompt_name', type=str, default='implied_concepts_prompt')
     parser.add_argument('--implied_model_thinking', action='store_true')
     parser.add_argument('--implied_model_url', type=str, default="http://localhost:3316/v1")
-    parser.add_argument('--implied_model_tag', type=str, default="Qwen/Qwen3-8B")
+    parser.add_argument('--implied_model_tag', type=str, default="Qwen/Qwen3-4B")
     parser.add_argument('--implied_model_max_tokens', type=int, default=2048)
     
     # Model settings
-    parser.add_argument('--model_tag', type=str, default='meta-llama/Llama-3.2-1B-Instruct')
-    parser.add_argument('--model_max_tokens', type=int, default=1024)
-    parser.add_argument('--model_temperature', type=float, default=0.7)
+    parser.add_argument('--model_tag', type=str, default='Qwen/Qwen3-4B')
+    parser.add_argument('--model_max_tokens', type=int, default=2048)
+    parser.add_argument('--model_temperature', type=float, default=1)
     parser.add_argument('--model_batch_size', type=int, default=8)
     parser.add_argument('--model_thinking', action='store_true')
     
@@ -83,15 +83,20 @@ def train_args():
     parser.add_argument('--steps', type=int, default=250)
     parser.add_argument('--gradient_accumulation_steps', type=int, default=4)
     parser.add_argument('--completions_per_prompt', type=int, default=6)
+    parser.add_argument('--loss_computed_on', type=str, default="explanation", choices=["decision", "explanation", "both"])
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--seed', type=int, default=0)
     
     # Save and Logging settings
     parser.add_argument('--output_dir', type=str, default='results/grpo_training')
     parser.add_argument('--logging_steps', type=int, default=1)
     parser.add_argument('--save_steps', type=int, default=25)
+    parser.add_argument('--eval_steps', type=int, default=25)
     
     # LoRA settings
     parser.add_argument('--lora', action='store_true')
     parser.add_argument('--lora_rank', type=int, default=16)
+    parser.add_argument('--lora_layers', type=str, nargs='+', default=None)
     
     # Data settings
     parser.add_argument('--dataset', type=str, default='bbq')

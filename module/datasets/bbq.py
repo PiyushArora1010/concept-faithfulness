@@ -196,3 +196,28 @@ class BBQDataset(Dataset):
         ans_map = {k: v for k,v in zip(ascii_uppercase, range(26))}
         pred = int(ans_map.get(pred, -1))
         return pred
+
+    def answer_starting_index(self, response, prompt_strategy):
+        if prompt_strategy.cot:
+            if sum([x in response for x in self.get_answer_choices()]) == 1:
+                pred = np.array(self.get_answer_choices())[[x in response for x in self.get_answer_choices()]][0]
+                return response.index(pred)
+            elif sum([x in response for x in self.get_answer_choices()]) == 0:
+                return -1
+            else:
+                tmp = response.split('is: (')
+                if len(tmp) == 1:
+                    tmp = response.split('is:\n(')
+                if len(tmp) <= 1:
+                    return -1
+                if len(tmp[-1]) < 2 or tmp[-1][1] != ')':
+                    return -1
+                answer_pattern = 'is: (' + tmp[-1][0] + ')' if 'is: (' in response else 'is:\n(' + tmp[-1][0] + ')'
+                return response.index(answer_pattern)
+        else:
+            if len(response) < 1:
+                return -1
+            pred = response[0]
+            if pred not in ['A', 'B', 'C']:
+                return -1
+            return 0
