@@ -64,20 +64,30 @@ def train_args():
     parser.add_argument('--few_shot', action='store_true')
     parser.add_argument('--few_shot_prompt_name', type=str, default='few_shot_cot_prompt')
     
-    # Implied concepts model settings
+    # Implied concepts settings
     parser.add_argument('--implied_concepts_base_prompt_name', type=str, default='implied_concepts_prompt')
-    parser.add_argument('--implied_model_tag', type=str, default='Qwen3_32B')
-    parser.add_argument('--implied_model_max_tokens', type=int, default=512)
-    parser.add_argument('--implied_model_temperature', type=float, default=0)
-    parser.add_argument('--implied_model_batch_size', type=int, default=8)
     parser.add_argument('--implied_model_thinking', action='store_true')
+    parser.add_argument('--implied_model_url', type=str, default="http://localhost:3316/v1")
+    parser.add_argument('--implied_model_tag', type=str, default="Qwen/Qwen3-8B")
+    parser.add_argument('--implied_model_max_tokens', type=int, default=2048)
     
     # Model settings
-    parser.add_argument('--model_tag', type=str, default='Qwen3_8B')
-    parser.add_argument('--model_max_tokens', type=int, default=512)
+    parser.add_argument('--model_tag', type=str, default='meta-llama/Llama-3.2-1B-Instruct')
+    parser.add_argument('--model_max_tokens', type=int, default=1024)
     parser.add_argument('--model_temperature', type=float, default=0.7)
     parser.add_argument('--model_batch_size', type=int, default=8)
     parser.add_argument('--model_thinking', action='store_true')
+    
+    # Training settings
+    parser.add_argument('--learning_rate', type=float, default=5e-6)
+    parser.add_argument('--steps', type=int, default=250)
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=4)
+    parser.add_argument('--completions_per_prompt', type=int, default=6)
+    
+    # Save and Logging settings
+    parser.add_argument('--output_dir', type=str, default='results/grpo_training')
+    parser.add_argument('--logging_steps', type=int, default=1)
+    parser.add_argument('--save_steps', type=int, default=25)
     
     # LoRA settings
     parser.add_argument('--lora', action='store_true')
@@ -87,9 +97,9 @@ def train_args():
     parser.add_argument('--dataset', type=str, default='bbq')
     parser.add_argument('--dataset_path', type=str, default='data/bbq')
     parser.add_argument('--example_indices', type=str, default='all')
-    parser.add_argument('--counterfactual_data_path', type=str, default=None)
-    parser.add_argument('--response_data_path', type=str, default=None)
-    parser.add_argument('--max_examples', type=int, default=100)
+    parser.add_argument('--counterfactual_data_path', type=str, default="results/concept_outputs/bbq/Llama3.3_70B")
+    parser.add_argument('--response_data_path', type=str, default="results/model_responses/bbq/Llama3.3_70B/Qwen3_4B")
+    parser.add_argument('--max_examples', type=int, default=100000000)
     
     return parser.parse_args()
     

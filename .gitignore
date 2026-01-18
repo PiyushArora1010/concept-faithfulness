@@ -11,9 +11,11 @@ error_model_responses/
 downloads/
 implied_concepts/
 faithfulness_scores/
+wandb/
+unsloth_*/
 
 logs/
-cache_paths.sh
+*.sh
 exp_*.py
 
 *.tar.gz

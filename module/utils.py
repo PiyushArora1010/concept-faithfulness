@@ -1,10 +1,19 @@
 import re
+import torch
 
 from module.models import Model
 from module.datasets.bbq import BBQDataset
 from module.datasets.medqa import MedQADataset
 
 import torch
+import torch.distributed as dist
+
+def print0(*args, **kwargs):
+    if not dist.is_available() or not dist.is_initialized():
+        print(*args, **kwargs)
+    elif dist.get_rank() == 0:
+        print(*args, **kwargs)
+
 
 def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4, thinking=False):
     if model_tag == "Llama3.2_1B":
