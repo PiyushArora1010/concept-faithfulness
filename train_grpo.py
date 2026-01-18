@@ -104,7 +104,7 @@ if __name__ == '__main__':
         processing_class=tokenizer,
         reward_funcs=[
             reward_function_faithfulness,
-            reward_function_formatting,
+            # reward_function_formatting,
         ],
         args=training_args,
         train_dataset=train_dataset,

@@ -80,6 +80,9 @@ class DecisionMaskedTrainerGRPO(GRPOTrainer):
 
                 elif self.engine.loss_computed_on == "explanation":
                     custom_mask[explanation_indices] = 1
+                    
+                else:
+                    raise ValueError(f"Invalid loss_computed_on: {self.engine.loss_computed_on}")
 
             custom_masks.append(custom_mask)
 
@@ -308,7 +311,7 @@ class TrainEngine(Engine):
         for index, (implied_concept, successful_intervention) in enumerate(zip(implied_concepts, successful_interventions)):
             
             if not mask[index]:
-                rewards.append(-1.0)
+                rewards.append(0.0)
                 continue
             
             if successful_intervention == implied_concept:
