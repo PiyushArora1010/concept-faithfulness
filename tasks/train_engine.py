@@ -308,7 +308,7 @@ class TrainEngine(Engine):
         for index, (implied_concept, successful_intervention) in enumerate(zip(implied_concepts, successful_interventions)):
             
             if not mask[index]:
-                rewards.append(0.0)
+                rewards.append(-1.0)
                 continue
             
             if successful_intervention == implied_concept:
