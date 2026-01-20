@@ -126,7 +126,7 @@ class TrainEngine(Engine):
         self._get_implied_client()
 
     # PREPARE DATASETS
-    def _prepare_datasets(self):
+    def _prepare_datasets(self, tokenizer):
         num_examples = min(len(self.dataset), self.max_examples)
 
         train_count = int(self.train_size * num_examples)
@@ -154,6 +154,7 @@ class TrainEngine(Engine):
             counterfactual_data_path=self.counterfactual_data_path,
             response_data_path=self.response_data_path,
             example_indices=train_indices,
+            tokenizer=tokenizer,
         )
 
         val_dataset = HF_Dataset(
@@ -162,6 +163,7 @@ class TrainEngine(Engine):
             counterfactual_data_path=self.counterfactual_data_path,
             response_data_path=self.response_data_path,
             example_indices=val_indices,
+            tokenizer=tokenizer,
         )
 
         test_dataset = HF_Dataset(
@@ -170,6 +172,7 @@ class TrainEngine(Engine):
             counterfactual_data_path=self.counterfactual_data_path,
             response_data_path=self.response_data_path,
             example_indices=test_indices,
+            tokenizer=tokenizer,
         )
         
         return train_dataset, val_dataset, test_dataset
@@ -182,7 +185,7 @@ class TrainEngine(Engine):
             load_in_4bit=False,  # False for LoRA 16bit
             fast_inference=True,  # Enable vLLM fast inference
             max_lora_rank=self.lora_rank,
-            gpu_memory_utilization=0.4,  # Reduce if out of memory
+            gpu_memory_utilization=0.45,  # Reduce if out of memory
         )
         
         if self.lora:
@@ -190,9 +193,13 @@ class TrainEngine(Engine):
                 model,
                 r=self.lora_rank,  # Choose any number > 0 ! Suggested 8, 16, 32, 64, 128
                 target_modules=self.lora_layers,  # Remove QKVO if out of memory
-                lora_alpha=self.lora_rank,
+                lora_alpha=self.lora_rank*2,
                 use_gradient_checkpointing="unsloth",  # Enable long context finetuning
+                random_state=self.seed
             )
+        model.generation_config.max_length = self.model_max_tokens
+        model.generation_config.temperature = self.model_temperature
+        model.generation_config.pad_token_id = tokenizer.pad_token_id
         return model, tokenizer
 
     # IMPLIED CONCEPTS MODEL
@@ -234,28 +241,17 @@ class TrainEngine(Engine):
         return answer
 
     def _get_answers_from_responses(self, responses, example_indices):
-        K = self.completions_per_prompt
-
-        answers = []
-        
-        for index, response in enumerate(responses):
-            outer_index = index // K
-            example_idx = example_indices[outer_index]
-            answer = self._get_answer_from_response(response, example_idx)
-            answers.append(answer)
-        
+        answers = [self._get_answer_from_response(response, example_idx) for response, example_idx in zip(responses, example_indices)]
         mask = torch.tensor([True if answer != "N/A" else False for answer in answers])
         return answers, mask
 
     def _get_implied_concepts(self, responses, answers, concepts_list, concept_values_list, intervention_dict_list):
-        K = self.completions_per_prompt
-        
         concepts_to_check_len = []
         prompts = []
         implied_concepts = []
 
         for index, response in enumerate(responses):
-            outer_index = index // K
+            outer_index = index
             
             concepts = concepts_list[outer_index]
             concept_values = concept_values_list[outer_index]
@@ -281,7 +277,7 @@ class TrainEngine(Engine):
         implied_concepts_responses = asyncio.run(self._get_client_responses(prompts))
         
         for index, response in enumerate(implied_concepts_responses):
-            outer_index = index // K
+            outer_index = index
             intervented_concept = intervention_dict_list[outer_index]["intervention_str"].find("1")
             len_concepts = concepts_to_check_len[index]
             try:
@@ -293,13 +289,14 @@ class TrainEngine(Engine):
             except:
                 implied_concept = "N/A"
             implied_concepts.append(implied_concept)
+            
         mask = torch.tensor([True if ic != "N/A" else False for ic in implied_concepts])
-        return implied_concepts, mask
+        return implied_concepts, mask, implied_concepts_responses
 
     def _get_successful_interventions(self, answers, original_answers):
         successful_interventions = []
         for index, answer in enumerate(answers):
-            outer_index = index // self.completions_per_prompt
+            outer_index = index
             original_answer = original_answers[outer_index]
             successful_intervention = int(answer != original_answer)
             successful_interventions.append(successful_intervention)

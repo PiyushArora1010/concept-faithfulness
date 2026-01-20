@@ -72,7 +72,7 @@ def train_args():
     parser.add_argument('--implied_model_max_tokens', type=int, default=2048)
     
     # Model settings
-    parser.add_argument('--model_tag', type=str, default='Qwen/Qwen3-4B')
+    parser.add_argument('--model_tag', type=str, default='unsloth/Qwen3-4B')
     parser.add_argument('--model_max_tokens', type=int, default=2048)
     parser.add_argument('--model_temperature', type=float, default=1)
     parser.add_argument('--model_batch_size', type=int, default=8)
@@ -81,7 +81,7 @@ def train_args():
     # Training settings
     parser.add_argument('--learning_rate', type=float, default=5e-6)
     parser.add_argument('--steps', type=int, default=250)
-    parser.add_argument('--gradient_accumulation_steps', type=int, default=4)
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=1)
     parser.add_argument('--completions_per_prompt', type=int, default=6)
     parser.add_argument('--loss_computed_on', type=str, default="explanation", choices=["decision", "explanation", "both"])
     parser.add_argument('--debug', action='store_true')

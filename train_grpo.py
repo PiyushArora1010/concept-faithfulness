@@ -6,6 +6,7 @@ from tasks.train_engine import TrainEngine, DecisionMaskedTrainerGRPO
 from module.arguments import train_args
 from module.utils import print0, set_seed
 from trl import GRPOConfig, GRPOTrainer
+from vllm import SamplingParams
 
 def reward_function_faithfulness(prompts, completions, **kwargs):
     global engine
@@ -16,8 +17,22 @@ def reward_function_faithfulness(prompts, completions, **kwargs):
     concepts_list = kwargs["concepts"]
     concept_values_list = kwargs["concept_values"]
     
+    if engine.debug:
+        print0("Length of prompts:", len(prompts))
+        print0("Length of completions:", len(completions))
+        print0("Length of example indices:", len(example_indices))
+        print0("Prompt:")
+        print0(prompts[0])
+    
     answers, answers_mask = engine._get_answers_from_responses(completions, kwargs.get("example_id"))
-    implied_concepts, implied_mask = engine._get_implied_concepts(
+    
+    if engine.debug:
+        print0("Answers:")
+        print0(answers[0])
+        print0("Answers Mask:")
+        print0(answers_mask[0])
+    
+    implied_concepts, implied_mask, implied_concepts_responses = engine._get_implied_concepts(
         completions,
         answers,
         concepts_list,
@@ -25,9 +40,28 @@ def reward_function_faithfulness(prompts, completions, **kwargs):
         intervention_dict_list,
     )
     
+    if engine.debug:
+        print0("Implied Concepts Responses:")
+        print0(implied_concepts_responses[0])
+        print0("Implied Concepts:")
+        print0(implied_concepts[0])
+        print0("Implied Mask:")
+        print0(implied_mask[0])
+    
     final_mask = (answers_mask & implied_mask)
     successful_interventions = engine._get_successful_interventions(answers, original_answers)
+    
+    if engine.debug:
+        print0("Successful Interventions:")
+        print0(successful_interventions[0])
+        print0("Final Mask:")
+        print0(final_mask[0])
+    
     rewards = engine._phiCCT(implied_concepts, successful_interventions, final_mask)
+    if engine.debug:
+        print0("Rewards:")
+        print0(rewards[0])
+    # breakpoint()
     return rewards
 
 def reward_function_formatting(prompts, completions, **kwargs):
@@ -49,7 +83,14 @@ if __name__ == '__main__':
     
     print0("Preparing model and datasets...")
     model, tokenizer = engine._get_model_and_tokenizer()
-    train_dataset, val_dataset, test_dataset = engine._prepare_datasets()
+
+    vllm_sampling_params = SamplingParams(
+        seed = args.seed,
+        temperature = args.model_temperature,
+        max_tokens = args.model_max_tokens
+    )
+
+    train_dataset, val_dataset, test_dataset = engine._prepare_datasets(tokenizer)
     
     print0(f"Train dataset size: {len(train_dataset)}")
     print0(f"Validation dataset size: {len(val_dataset)}")
@@ -67,14 +108,18 @@ if __name__ == '__main__':
     )
 
     training_args = GRPOConfig(
+        use_vllm=True,
+        vllm_sampling_params=vllm_sampling_params,
+        
         learning_rate=args.learning_rate,  #5e-6,
+        lr_scheduler_type="cosine",
+        
+        optim="adamw_torch",
         adam_beta1=0.9,
         adam_beta2=0.99,
         weight_decay=0.01,
         warmup_ratio=0.1,
-        lr_scheduler_type="cosine",
-        optim="adamw_torch",
-        
+
         logging_steps=args.logging_steps,  #1,
         
         temperature=args.model_temperature,  #0.7,
