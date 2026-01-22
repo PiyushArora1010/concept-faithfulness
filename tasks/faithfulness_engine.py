@@ -253,7 +253,7 @@ class FaithfulnessEngine(Engine):
     # --------------------------------------------------------------------------
 
     def phiCCT(self):
-        example_ids = range(self.example_indices[0], self.example_indices[-1] + 1)
+        example_ids = self.example_indices
         results = self.run_in_batches(self.per_example_phiCCT, example_ids)
 
         impact_arrays, explanation_arrays, output = [], [], {}
@@ -281,7 +281,7 @@ class FaithfulnessEngine(Engine):
         return score
 
     def CT(self):
-        example_ids = range(self.example_indices[0], self.example_indices[-1] + 1)
+        example_ids = self.example_indices
         results = self.run_in_batches(self.per_example_CT, example_ids)
 
         impact_arrays, explanation_arrays, output = [], [], {}
@@ -309,7 +309,7 @@ class FaithfulnessEngine(Engine):
         return score
 
     def walk_the_talk(self):
-        example_ids = range(self.example_indices[0], self.example_indices[-1] + 1)
+        example_ids = self.example_indices
         results = self.run_in_batches(self.per_example_walk_the_talk, example_ids)
 
         causal_arrays, implied_arrays = [], []

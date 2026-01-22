@@ -1,5 +1,6 @@
 import torch
 from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
 from transformers import AutoTokenizer
 
 class Model:
@@ -31,7 +32,7 @@ class Model:
             tensor_parallel_size=torch.cuda.device_count(),
             dtype="bfloat16",
             trust_remote_code=True,
-            gpu_memory_utilization=0.5,
+            gpu_memory_utilization=0.9,
             max_model_len=4096,
             # download_dir="downloads",
         )

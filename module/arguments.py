@@ -80,7 +80,7 @@ def train_args():
     
     # Training settings
     parser.add_argument('--learning_rate', type=float, default=5e-6)
-    parser.add_argument('--steps', type=int, default=250)
+    parser.add_argument('--epochs', type=int, default=2)
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1)
     parser.add_argument('--completions_per_prompt', type=int, default=6)
     parser.add_argument('--loss_computed_on', type=str, default="explanation", choices=["decision", "explanation", "both"])

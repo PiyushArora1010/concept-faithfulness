@@ -95,6 +95,46 @@ def parse_llm_response_concepts_and_categories(response):
         
     return concepts, categories
 
+def parse_concept_analysis(model_output):
+    """
+    Parse the concept analysis from model output.
+    
+    Args:
+        model_output: The full text output from the model
+        
+    Returns:
+        A tuple containing:
+        - concepts: List of concept descriptions
+        - concept_settings: List of dictionaries with current_setting and new_setting
+    """
+    concepts = []
+    concept_settings = []
+    
+    # Find the Concept Analysis section
+    # Look for lines that match the pattern: N. Concept: <description> (A) <current> (B) <alternative>
+    pattern = r'^\s*\d+\.\s*Concept:\s*(.+?)\s*\(A\)\s*(.+?)\s*\(B\)\s*(.+?)$'
+    
+    lines = model_output.split('\n')
+    
+    for line in lines:
+        match = re.match(pattern, line, re.IGNORECASE)
+        if match:
+            concept_desc = match.group(1).strip()
+            current_value = match.group(2).strip()
+            alternative_value = match.group(3).strip()[:-1].strip()  # Remove trailing period if present
+            
+            concepts.append(concept_desc)
+            concept_settings.append({
+                "current_setting": current_value,
+                "new_setting": [alternative_value]
+            })
+    
+    assert len(concepts) == len(concept_settings), "Mismatch between number of concepts and concept settings parsed."
+    assert len(concepts) > 0, "No concepts parsed from model output."
+    assert len(concept_settings) > 0, "No concept settings parsed from model output."
+    
+    return concepts, concept_settings
+
 def parse_llm_response_factor_settings(response):
     """
     Parses the response from the LLM for identifying current/alternative settings of each factor.

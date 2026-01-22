@@ -125,12 +125,13 @@ if __name__ == '__main__':
         temperature=args.model_temperature,  #0.7,
         
         per_device_train_batch_size=args.model_batch_size,
+        per_device_eval_batch_size=args.model_batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,  # Increase to 4 for smoother training
         num_generations=args.completions_per_prompt,  # Decrease if out of memory
         max_prompt_length=max_prompt_length,
         max_completion_length=max_seq_length - max_prompt_length,
         
-        max_steps=args.steps,  #250,
+        num_train_epochs=args.epochs,  #2,
         save_steps=args.save_steps,  #25,
         eval_steps=args.eval_steps,  #25,
         

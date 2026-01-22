@@ -5,6 +5,7 @@ import copy
 from module.utils import PromptingStrategy
 
 from tasks.engine import Engine
+from module.models import unslothModel
 
 class ModelResponseEngine(Engine):
     def __init__(self, args):
@@ -76,7 +77,7 @@ class ModelResponseEngine(Engine):
         batch_counter = 0
         example_indices_batch = []
         
-        for idx, example_idx in enumerate(range(self.example_indices[0], self.example_indices[-1] + 1)):
+        for idx, example_idx in enumerate(self.example_indices):
 
             if batch_counter >= batch_size:
                 self._get_original_responses_batch(example_indices_batch)
@@ -163,8 +164,8 @@ class ModelResponseEngine(Engine):
         example_indices_batch = []
         example_intervention_files_batch = []
         example_parsed_counterfactuals_batch = []
-        
-        for idx, example_idx in enumerate(range(self.example_indices[0], self.example_indices[-1] + 1)):
+
+        for idx, example_idx in enumerate(self.example_indices):
             if batch_counter >= batch_size:
                 self._get_counterfactual_responses_batch(
                     example_indices_batch,

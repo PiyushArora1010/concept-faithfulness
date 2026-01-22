@@ -2,7 +2,7 @@ import os
 import json
 import copy
 
-from module.utils import parse_llm_response_concepts_and_categories, parse_llm_response_factor_settings, enumerate_interventions
+from module.utils import parse_llm_response_concepts_and_categories, parse_llm_response_factor_settings, enumerate_interventions, parse_concept_analysis
 
 from tasks.engine import Engine
 
@@ -66,7 +66,7 @@ class ConceptInterventionEngine(Engine):
         batch_counter = 0
         example_indices_batch = []
         
-        for idx, example_idx in enumerate(range(self.example_indices[0], self.example_indices[-1] + 1)):
+        for idx, example_idx in enumerate(self.example_indices):
             if batch_counter >= batch_size:
                 self._get_concept_ids_batch(example_indices_batch)
                 example_indices_batch = []
@@ -142,7 +142,7 @@ class ConceptInterventionEngine(Engine):
         batch_size = self.example_batch_size
         batch_counter = 0   
         example_indices_batch = []
-        for idx, example_idx in enumerate(range(self.example_indices[0], self.example_indices[-1] + 1)):
+        for idx, example_idx in enumerate(self.example_indices):
             if batch_counter >= batch_size:
                 self._get_intervention_sets_batch(example_indices_batch)
                 example_indices_batch = []
@@ -166,6 +166,80 @@ class ConceptInterventionEngine(Engine):
             
         if len(example_indices_batch) > 0:
             self._get_intervention_sets_batch(example_indices_batch)
+
+    def _get_concept_ids_and_intervention_sets_batch(self, example_indices):
+        prompts = []
+        for cnt, example_idx in enumerate(example_indices):
+            prompt = self.dataset.format_prompt_concept_id(
+                example_idx,
+                self.concept_id_base_prompt_name,
+                not self.exclude_question_in_prompt
+            )
+            prompts.append(prompt)
+        
+        if len(prompts) == 0:
+            return
+        
+        responses = self.model.batch_generate_response(prompts)
+        for cnt, example_idx in enumerate(example_indices):
+
+            example_dir = os.path.join(self.output_dir, f"example_{example_idx}")
+            response = responses[cnt]
+            print(f"LLM Response for example {example_idx}:\n{response}\n")
+
+            concept_path = os.path.join(example_dir, "concepts.json")
+            concept_settings_path = os.path.join(example_dir, "concept_settings.json")
+
+            try:
+                concepts, concept_settings = parse_concept_analysis(response)
+
+                os.makedirs(os.path.dirname(concept_path), exist_ok=True)
+                
+                with open(concept_path, 'w') as f:
+                    json.dump(concepts, f, indent=4)
+                with open(concept_settings_path, 'w') as f:
+                    json.dump(concept_settings, f, indent=4)
+                print(f"Saved concepts and Settings for example {example_idx} to {concept_path} and {concept_settings_path}.")
+                
+            except Exception as e:
+                concept_path = os.path.join("errors", *os.path.normpath(concept_path).split(os.path.sep)[1:])
+                concept_settings_path = os.path.join("errors", *os.path.normpath(concept_settings_path).split(os.path.sep)[1:])
+                os.makedirs(os.path.dirname(concept_path), exist_ok=True)
+                os.makedirs(os.path.dirname(concept_settings_path), exist_ok=True)
+                
+                with open(concept_path, 'w') as f:
+                    json.dump({
+                        "error": str(e),
+                        "response": response
+                    }, f, indent=4)
+                with open(concept_settings_path, 'w') as f:
+                    json.dump({
+                        "error": str(e),
+                        "response": response
+                    }, f, indent=4)
+                print(f"Error parsing concepts and settings for example {example_idx}: {e}. Saved error info to {concept_path} and {concept_settings_path}.")
+
+    def _get_concept_ids_and_intervention_sets(self):
+        batch_size = self.example_batch_size
+        batch_counter = 0
+        example_indices_batch = []
+        
+        for idx, example_idx in enumerate(self.example_indices):
+            if batch_counter >= batch_size:
+                self._get_concept_ids_and_intervention_sets_batch(example_indices_batch)
+                example_indices_batch = []
+                batch_counter = 0
+            
+            example_dir = os.path.join(self.output_dir, f"example_{example_idx}")
+            if os.path.exists(os.path.join(example_dir, "concepts.json")) and os.path.exists(os.path.join(example_dir, "concept_settings.json")):
+                print(f"Concepts and settings already generated for example {example_idx}. Skipping...")
+                continue
+            
+            example_indices_batch.append(example_idx)
+            batch_counter += 1
+            
+        if len(example_indices_batch) > 0:
+            self._get_concept_ids_and_intervention_sets_batch(example_indices_batch)
 
     def _apply_interventions_batch(self, example_indices, concepts_list, concept_settings_list):
         counterfactual_gen_dics = []
@@ -273,7 +347,7 @@ class ConceptInterventionEngine(Engine):
         concepts_list = []
         concept_settings_list = []
         
-        for idx, example_idx in enumerate(range(self.example_indices[0], self.example_indices[-1] + 1)):
+        for idx, example_idx in enumerate(self.example_indices):
 
             if batch_counter >= batch_size:
                 self._apply_interventions_batch(example_indices_batch, concepts_list, concept_settings_list)
@@ -312,6 +386,8 @@ class ConceptInterventionEngine(Engine):
             self._get_intervention_sets()
         elif task == 'apply_interventions':
             self._apply_interventions()
+        elif task == 'get_concept_ids_and_intervention_sets':
+            self._get_concept_ids_and_intervention_sets()
         else:
             raise ValueError(f"Unsupported task: {task}")
         

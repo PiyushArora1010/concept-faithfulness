@@ -136,7 +136,7 @@ class ImpliedConceptsEngine(Engine):
         example_interventions_batch = []
         example_responses_batch = []
         
-        for idx, example_idx in enumerate(range(self.example_indices[0], self.example_indices[-1] + 1)):
+        for idx, example_idx in enumerate(self.example_indices):
             if batch_counter >= batch_size:
                 self._identify_implied_concepts_batch(
                     sub_dir,

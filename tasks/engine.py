@@ -1,3 +1,5 @@
+import json
+
 from module.utils import get_language_model
 from module.utils import get_dataset
 from module.utils import PromptingStrategy
@@ -10,15 +12,14 @@ class Engine:
         self.dataset_tag = self.dataset
         self._get_dataset()
         
-        if self.example_indices == "all":
+        if ".json" in self.example_indices:
+            with open(self.example_indices, 'r') as f:
+                self.example_indices = json.load(f)
+        elif self.example_indices == "all":
             self.example_indices = list(range(len(self.dataset)))
         else:
             self.example_indices = self.example_indices.strip().split(",")
             self.example_indices = [int(idx) for idx in self.example_indices]
-            if len(self.example_indices) == 2:
-                self.example_indices = [idx for idx in range(self.example_indices[0], self.example_indices[-1]+1)]
-            else:
-                self.example_indices = [self.example_indices[0], self.example_indices[0]]
             
     def _get_dataset(self):
         self.dataset = get_dataset(self.dataset, self.dataset_path)
