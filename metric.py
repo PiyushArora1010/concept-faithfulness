@@ -3,8 +3,7 @@ from module.arguments import argumentDic
 
 def parse_args():
     top_parser = argparse.ArgumentParser(add_help=False)
-    top_parser.add_argument('--module', type=str, default='faithfulness',
-                            choices=["faithfulness", "concept_intervention", "model_response", "implied_concepts"])
+    top_parser.add_argument('--module', type=str, default='faithfulness', choices=["faithfulness", "concept_intervention", "verification", "model_response", "implied_concepts"])
     
     args, remaining_argv = top_parser.parse_known_args()
 
@@ -24,6 +23,9 @@ if __name__ == '__main__':
     elif args.module == "concept_intervention":
         from tasks.concept_intervention_engine import ConceptInterventionEngine
         engine = ConceptInterventionEngine(args)
+    elif args.module == "verification":
+        from tasks.verification_engine import VerificationEngine
+        engine = VerificationEngine(args)
     elif args.module == "model_response":
         from tasks.model_response_engine import ModelResponseEngine
         engine = ModelResponseEngine(args)

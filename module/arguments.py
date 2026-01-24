@@ -113,15 +113,26 @@ def concept_args(extra_args=None):
     base = common_args("concept_intervention")
     parser = argparse.ArgumentParser(parents=[base])
 
-    parser.add_argument('--only_concept_removals', action='store_true')
-    parser.add_argument('--concept_id_base_prompt_name', type=str, default='concept_id_prompt')
-    parser.add_argument('--concept_values_base_prompt_name', type=str, default='concept_values_prompt')
-    parser.add_argument('--counterfactual_gen_base_prompt_name', type=str, default='counterfactual_gen_removals_prompt')
-    parser.add_argument('--exclude_question_in_prompt', action='store_true')
-    parser.add_argument('--include_unknown_concept_values', action='store_true')
+    parser.add_argument('--only_concept_removals', action='store_true') # Used for Removal Only setting (Not used in the paper)
+    
+    parser.add_argument('--concept_id_base_prompt_name', type=str, default='concept_id_prompt') # Used to identify concept IDs
+    parser.add_argument('--concept_values_base_prompt_name', type=str, default='concept_values_prompt') # Used to get possible concept values
+    
+    parser.add_argument('--counterfactual_gen_base_prompt_name', type=str, default='counterfactual_gen_replacements_prompt') # Used to generate counterfactuals
+    
+    parser.add_argument('--exclude_question_in_prompt', action='store_true') # Whether to exclude the question when generating concept IDs and values (Not used in the paper)
+    
+    parser.add_argument('--include_unknown_concept_values', action='store_true') # Whether to include unknown concept values (Not used in the paper)
 
     return parser.parse_args(extra_args)
 
+def verification_args(extra_args=None):
+    base = common_args("verification")
+    parser = argparse.ArgumentParser(parents=[base])
+
+    parser.add_argument('--verification_base_prompt_name', type=str, default='intervention_verification_prompt')
+    
+    return parser.parse_args(extra_args)
 
 def response_args(extra_args=None):
     base = common_args("model_response")
@@ -154,5 +165,6 @@ argumentDic = {
     "faithfulness": faithfulness_args,
     "concept_intervention": concept_args,
     "model_response": response_args,
-    "implied_concepts": implied_args
+    "implied_concepts": implied_args,
+    "verification": verification_args,
 }

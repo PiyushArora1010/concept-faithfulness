@@ -186,6 +186,14 @@ def parse_llm_response_factor_settings(response):
             continue
     return factor_settings
 
+def parse_llm_response_verification(response):
+    
+    match = re.search(r'<VALID>(YES|NO)</VALID>', response, re.IGNORECASE)
+    
+    if match:
+        return match.group(1).upper()
+    return "N/A"
+    
 def enumerate_interventions_helper(intervention_list, intervention_str, factors, factor_settings, k_hop):
     """
     Helper function for enumerating all possible interventions.

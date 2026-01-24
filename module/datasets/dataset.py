@@ -60,7 +60,27 @@ class Dataset:
         instruction += concept_str
         instruction += "\nConcept Values:\n"
         return instruction
-    
+
+    def format_prompt_qa_verification(self, intervention_data, verification_base_prompt_name, idx, context_idx=0):
+        with open(os.path.join(self.dataset_path, f"{verification_base_prompt_name}.txt"), "r") as f:  
+            verification_few_shot_exemplar = f.read()
+        instruction = verification_few_shot_exemplar
+        instruction += "Original Sample\n"
+        instruction += self.format_question_info(idx, True, context_idx)
+
+        changed_concept = intervention_data["intervention_str"].find("1")
+        old_value = intervention_data["old_values"][changed_concept]
+        new_value = intervention_data["new_values"][changed_concept]
+        
+        instruction += f"\nConcept Intervention:\n"
+        instruction += f"Old Value: {old_value}\n"
+        instruction += f"New Value: {new_value}\n\n"
+        instruction += "Counterfactual Sample\n"
+        instruction += self.format_question_counterfactual(intervention_data["parsed_counterfactual"], False)
+        instruction += f"\nReasoning:"
+        return instruction
+
+
     def format_prompt_counterfactual_gen(self, idx, counterfactual_base_prompt_name, concepts, intervene_bool, new_values, old_values, context_idx=0):
         with open(os.path.join(self.dataset_path, f"{counterfactual_base_prompt_name}.txt"), "r") as f:  
             counterfactual_few_shot_exemplar = f.read()
