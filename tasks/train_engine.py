@@ -50,7 +50,6 @@ class DecisionMaskedTrainerGRPO(GRPOTrainer):
     
     def _generate_and_score_completions(self, inputs):
         outputs = super()._generate_and_score_completions(inputs)
-
         if self.engine.loss_computed_on == "both":
             return outputs
 
@@ -117,7 +116,7 @@ class DecisionMaskedTrainerGRPO(GRPOTrainer):
         return outputs
 
 
-class TrainEngine(Engine):
+class TrainEngineGRPO(Engine):
     def __init__(self, args):
         super().__init__(args)
         os.makedirs(self.output_dir, exist_ok=True)
@@ -155,6 +154,7 @@ class TrainEngine(Engine):
             response_data_path=self.response_data_path,
             example_indices=train_indices,
             tokenizer=tokenizer,
+            verify=self.verify,
         )
 
         val_dataset = HF_Dataset(
@@ -164,6 +164,7 @@ class TrainEngine(Engine):
             response_data_path=self.response_data_path,
             example_indices=val_indices,
             tokenizer=tokenizer,
+            verify=self.verify,
         )
 
         test_dataset = HF_Dataset(
@@ -173,6 +174,7 @@ class TrainEngine(Engine):
             response_data_path=self.response_data_path,
             example_indices=test_indices,
             tokenizer=tokenizer,
+            verify=self.verify,
         )
         
         return train_dataset, val_dataset, test_dataset

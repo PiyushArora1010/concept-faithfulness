@@ -2,7 +2,7 @@ import os
 import wandb
 import argparse
 import unsloth
-from tasks.train_engine import TrainEngine, DecisionMaskedTrainerGRPO
+from tasks.train_engine import TrainEngineGRPO, DecisionMaskedTrainerGRPO
 from module.arguments import train_args
 from module.utils import print0, set_seed
 from trl import GRPOConfig, GRPOTrainer
@@ -10,28 +10,14 @@ from vllm import SamplingParams
 
 def reward_function_faithfulness(prompts, completions, **kwargs):
     global engine
-    
     example_indices = kwargs["example_id"]
     intervention_dict_list = kwargs["intervention_dict"]
     original_answers = kwargs["original_answers"]
     concepts_list = kwargs["concepts"]
     concept_values_list = kwargs["concept_values"]
     
-    if engine.debug:
-        print0("Length of prompts:", len(prompts))
-        print0("Length of completions:", len(completions))
-        print0("Length of example indices:", len(example_indices))
-        print0("Prompt:")
-        print0(prompts[0])
-    
     answers, answers_mask = engine._get_answers_from_responses(completions, kwargs.get("example_id"))
-    
-    if engine.debug:
-        print0("Answers:")
-        print0(answers[0])
-        print0("Answers Mask:")
-        print0(answers_mask[0])
-    
+ 
     implied_concepts, implied_mask, implied_concepts_responses = engine._get_implied_concepts(
         completions,
         answers,
@@ -40,28 +26,11 @@ def reward_function_faithfulness(prompts, completions, **kwargs):
         intervention_dict_list,
     )
     
-    if engine.debug:
-        print0("Implied Concepts Responses:")
-        print0(implied_concepts_responses[0])
-        print0("Implied Concepts:")
-        print0(implied_concepts[0])
-        print0("Implied Mask:")
-        print0(implied_mask[0])
-    
     final_mask = (answers_mask & implied_mask)
     successful_interventions = engine._get_successful_interventions(answers, original_answers)
-    
-    if engine.debug:
-        print0("Successful Interventions:")
-        print0(successful_interventions[0])
-        print0("Final Mask:")
-        print0(final_mask[0])
-    
+
     rewards = engine._phiCCT(implied_concepts, successful_interventions, final_mask)
-    if engine.debug:
-        print0("Rewards:")
-        print0(rewards[0])
-    # breakpoint()
+ 
     return rewards
 
 def reward_function_formatting(prompts, completions, **kwargs):
@@ -78,7 +47,7 @@ def reward_function_formatting(prompts, completions, **kwargs):
 if __name__ == '__main__':
     args = train_args()
     print0("Setting up training engine...")
-    engine = TrainEngine(args)
+    engine = TrainEngineGRPO(args)
     set_seed(args.seed)
     
     print0("Preparing model and datasets...")
@@ -101,6 +70,9 @@ if __name__ == '__main__':
 
     RUN_NAME = f"grpo_faithfulness_{args.dataset}_{args.model_tag.replace('/', '-')}"
 
+    output_dir = os.path.join(args.output_dir, args.dataset, args.model_tag.replace('/', '-'))
+    os.makedirs(output_dir, exist_ok=True)
+    
     wandb.init(
         project="Faithfulness ISO",
         name=RUN_NAME,  
@@ -117,8 +89,8 @@ if __name__ == '__main__':
         optim="adamw_torch",
         adam_beta1=0.9,
         adam_beta2=0.99,
-        weight_decay=0.01,
-        warmup_ratio=0.1,
+        weight_decay=0.05,
+        warmup_ratio=0.05,
 
         logging_steps=args.logging_steps,  #1,
         
@@ -135,9 +107,9 @@ if __name__ == '__main__':
         save_steps=args.save_steps,  #25,
         eval_steps=args.eval_steps,  #25,
         
-        max_grad_norm=0.1,
+        max_grad_norm=0.3,
         report_to="wandb",  # Can use Weights & Biases
-        output_dir=args.output_dir,  # Directory to save results
+        output_dir=output_dir,  # Directory to save results
         
         run_name = RUN_NAME,
         

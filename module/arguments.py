@@ -101,6 +101,7 @@ def train_args():
     # Data settings
     parser.add_argument('--dataset', type=str, default='bbq')
     parser.add_argument('--dataset_path', type=str, default='data/bbq')
+    parser.add_argument('--verify', type=str, default=None)
     parser.add_argument('--example_indices', type=str, default='all')
     parser.add_argument('--counterfactual_data_path', type=str, default="results/concept_outputs/bbq/Llama3.3_70B")
     parser.add_argument('--response_data_path', type=str, default="results/model_responses/bbq/Llama3.3_70B/Qwen3_4B")

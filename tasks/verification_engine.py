@@ -141,8 +141,117 @@ class VerificationEngine(Engine):
                 example_interventions_data_batch
             )
     
+    def _verify_concepts_batch(self, example_indices, example_concepts):
+        prompts = []
+        cumulative_counts = []
+        
+        for cnt, example_idx in enumerate(example_indices):
+            cumulative_counts.append(len(prompts))
+            
+            for concept in example_concepts[cnt]:
+                verification_prompt = self.dataset.format_prompt_concept_verification(
+                    concept,
+                    verification_base_prompt_name=self.verification_base_prompt_name,
+                    idx=example_idx
+                )
+                # breakpoint()
+                prompts.append(verification_prompt)
+                
+        responses = self.model.batch_generate_response(prompts)
+        
+        for cnt, example_idx in enumerate(example_indices):
+            example_dir = os.path.join(
+                self.output_dir,
+                f"example_{example_idx}",
+            )
+            example_save_path = os.path.join(
+                example_dir,
+                f"verification_concepts_{self.model_tag}.json"
+            )
+            example_concept_results = []
+            print(self.dataset.format_question_info(example_idx, True, 0))
+            for concept_index, concept in enumerate(example_concepts[cnt]):
+                global_cnt = cumulative_counts[cnt] + concept_index
+                
+                response = responses[global_cnt]
+                
+                try:
+                    concept_decision = parse_llm_response_verification(
+                        response
+                    )
+                except:
+                    concept_decision = "N/A"
+                
+                print(f"Example {example_idx}, Concept {concept}: Verification result - {concept_decision}")
+                concept_result = {
+                    "concept": concept,
+                    "response": response,
+                    "verification": concept_decision
+                }
+                example_concept_results.append(concept_result)
+            
+            
+            
+            os.makedirs(os.path.dirname(example_save_path), exist_ok=True)
+            with open(example_save_path, 'w') as f:
+                json.dump(example_concept_results, f, indent=4)
+
+    def _verify_concepts(self):
+        batch_size = self.example_batch_size
+        
+        batch_counter = 0
+        example_indices_batch = []
+        example_concepts_batch = []
+
+        for idx, example_idx in enumerate(self.example_indices):
+            if batch_counter >= batch_size:
+                self._verify_concepts_batch(
+                    example_indices_batch,
+                    example_concepts_batch
+                )
+                example_indices_batch = []
+                example_concepts_batch = []
+                batch_counter = 0
+            
+            concept_file_path = os.path.join(
+                self.output_dir,
+                f"example_{example_idx}",
+                "concept_settings.json"
+            )
+            
+            verification_file_path = os.path.join(
+                self.output_dir,
+                f"example_{example_idx}",
+                f"verification_concepts_{self.model_tag}.json"
+            )
+            
+            if os.path.exists(verification_file_path):
+                print(f"Concepts for example {example_idx} have already been verified. Skipping...")
+                continue
+            
+            if not os.path.exists(concept_file_path):
+                print(f"No concept file found for example {example_idx}. Skipping...")
+                continue
+            
+            with open(concept_file_path, 'r') as f:
+                concept_data = json.load(f)
+                
+            concepts = [[entry["current_setting"], entry["new_settings"][0]] for entry in concept_data]
+            
+            example_indices_batch.append(example_idx)
+            example_concepts_batch.append(concepts)
+            batch_counter += 1
+            
+        if len(example_indices_batch) > 0:
+            self._verify_concepts_batch(
+                example_indices_batch,
+                example_concepts_batch
+            )
+
     def run(self, task):
-        if task == "verify_counterfactuals":
+        if task == "verify_interventions":
             self._verify_counterfactual_questions()
+        elif task == "verify_concepts":
+            self._verify_concepts()
         else:
             raise NotImplementedError(f"Task {task} not implemented in VerificationEngine.")
