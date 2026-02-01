@@ -371,21 +371,167 @@ def HF_Dataset(dataset, prompting_strategy, counterfactual_data_path, response_d
 
     return HFDataset.from_list(samples)
 
+def ConditionsGRPODataset(dataset, prompting_strategy, counterfactual_data_path, example_indices, tokenizer):
+    example_ids = set(map(str, example_indices))
+
+    example_re = re.compile(r"example_(\d+)")
+    counterfactual_re = re.compile(r"counterfactual_(.+?)\.json")
+
+    concepts_by_example = {}
+    concept_values_by_example = {}
+
+    # GET CONCEPTS
+    concept_files = glob.glob(os.path.join(counterfactual_data_path, "example_*", "concepts.json"))
+    for path in concept_files:
+        example_id = example_re.search(path).group(1)
+        if example_id not in example_ids:
+            continue
+        with open(path) as f:
+            concepts_by_example[example_id] = json.load(f)
+
+    # GET CONCEPT VALUES
+    concept_settings_files = glob.glob(
+        os.path.join(counterfactual_data_path, "example_*", "concept_settings.json")
+    )
+    for path in concept_settings_files:
+        example_id = example_re.search(path).group(1)
+        if example_id not in example_ids:
+            continue
+        with open(path) as f:
+            concept_values_by_example[example_id] = json.load(f)
+    
+    # GET COUNTERFACTUAL QUESTIONS
+    counterfactual_files = glob.glob(
+        os.path.join(counterfactual_data_path, "example_*", "counterfactual_*1*.json")
+    )
+    
+    # DICTIONARY OF COUNTERFACTUAL FILES BY EXAMPLE
+    counterfactual_files_by_example = {}
+    for path in counterfactual_files:
+        example_id = example_re.search(path).group(1)
+        if example_id not in example_ids:
+            continue
+        if example_id not in counterfactual_files_by_example:
+            counterfactual_files_by_example[example_id] = []
+        counterfactual_files_by_example[example_id].append(path)
+
+
+    samples = []
+    
+    for example_id in tqdm(example_indices):
+        if str(example_id) not in counterfactual_files_by_example:
+            continue
+        
+        if str(example_id) not in concepts_by_example:
+            continue
+        
+        if str(example_id) not in concept_values_by_example:
+            continue
+        
+        counterfactual_data_list = []
+        for path in counterfactual_files_by_example[str(example_id)]:
+            with open(path) as f:
+                counterfactual_data_list.append(json.load(f))
+        
+        counterfactual_prompts = [
+            dataset.format_prompt_qa_counterfactual(
+                counterfactual_data["parsed_counterfactual"],
+                prompting_strategy,
+                idx=example_id
+            )
+            for counterfactual_data in counterfactual_data_list
+        ]
+        
+        counterfactual_intervention_strings = [
+            counterfactual_data["intervention_str"] for counterfactual_data in counterfactual_data_list
+        ]
+        
+        concepts = concepts_by_example.get(str(example_id))
+        concept_values = concept_values_by_example.get(str(example_id))
+        
+        basic_example_prompt = dataset.format_prompt_basic(example_id)
+        example_prompt = dataset.format_prompt_qa(basic_example_prompt, prompting_strategy, idx=example_id)
+        
+        example_prompt = tokenizer.apply_chat_template(
+            [{"role": "user", "content": example_prompt}],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False
+            )
+        
+        counterfactual_prompts = [
+            tokenizer.apply_chat_template(
+                [{"role": "user", "content": cf_prompt}],
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False
+            )
+            for cf_prompt in counterfactual_prompts
+        ]
+        
+        samples.append({
+            "example_id": int(example_id),
+            "prompt": example_prompt,
+            "counterfactual_prompts": counterfactual_prompts,
+            "counterfactual_intervention_strings": counterfactual_intervention_strings,
+            "concepts": concepts,
+            "concept_values": concept_values,
+        })
+
+    return HFDataset.from_list(samples)
 
 if __name__ == "__main__":
-    path = "/rds/general/user/pa524/home/concept-faithfulness/results/concept_outputs/bbq/Qwen3_32B"
-    path2 = "/rds/general/user/pa524/home/concept-faithfulness/results/model_responses/bbq/Llama3.3_70B/Qwen3_32B"
-    example_indices = [0,1,2]  # Example indices to include
+    from bbq import BBQDataset
+    class PromptingStrategy:
+        def __init__(self, cot, few_shot, knn_rank, few_shot_prompt_name=None, add_instr=None):
+            """
+            Class for specifying the prompting strategy.
+            Args:
+                cot: whether to use CoT or direct answer trigger
+                few_shot: whether to add few-shot examples to prompt
+                knn_rank: whether to use knn rank (for now, only applicable to MedQA)
+                few_shot_prompt_name: name of few shot prompt to use
+                add_instr: additional instructions to add to prompt
+            """
+            self.cot = cot 
+            self.few_shot = few_shot
+            self.knn_rank = knn_rank
+            if self.few_shot:
+                assert few_shot_prompt_name is not None, "few_shot_prompt_name must be specified if few_shot is True"
+            self.few_shot_prompt_name = few_shot_prompt_name
+            self.add_instr = add_instr
 
+    path = "/rds/general/user/pa524/home/concept-faithfulness/verified_results/concept_outputs/bbq/Qwen3_32B"
+    example_indices = [0,1,2]  # Example indices to include
+    prompting_strategy = PromptingStrategy(
+        cot=True,
+        few_shot=False,
+        knn_rank=False,
+        few_shot_prompt_name=None,
+        add_instr=None
+    )
+    dataset = BBQDataset(
+        name="bbq",
+        dataset_path="/rds/general/user/pa524/home/concept-faithfulness/data/bbq"
+    )
     # dataset = build_hf_dataset(path, path2, example_indices)
-    dataset = HF_Dataset(
-        dataset=None,
-        prompting_strategy=None,
+    # dataset = HF_Dataset(
+    #     dataset=None,
+    #     prompting_strategy=None,
+    #     counterfactual_data_path=path,
+    #     response_data_path=path2,
+    #     example_indices=example_indices,
+    #     tokenizer=None,
+    #     verify="Qwen3_32B"
+    # )
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-4B", trust_remote_code=True)
+    dataset = ConditionsGRPODataset(
+        dataset=dataset,
+        prompting_strategy=prompting_strategy,
         counterfactual_data_path=path,
-        response_data_path=path2,
         example_indices=example_indices,
-        tokenizer=None,
-        verify="Qwen3_32B"
+        tokenizer=tokenizer
     )
     print(f"Loaded dataset with {len(dataset)} examples")
     breakpoint()

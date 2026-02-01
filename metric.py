@@ -3,7 +3,7 @@ from module.arguments import argumentDic
 
 def parse_args():
     top_parser = argparse.ArgumentParser(add_help=False)
-    top_parser.add_argument('--module', type=str, default='faithfulness', choices=["faithfulness", "concept_intervention", "verification", "model_response", "implied_concepts"])
+    top_parser.add_argument('--module', type=str, default='faithfulness', choices=["faithfulness", "concept_intervention", "verification", "model_response", "implied_concepts", "data_generation", "baseline"])
     
     args, remaining_argv = top_parser.parse_known_args()
 
@@ -32,6 +32,14 @@ if __name__ == '__main__':
     elif args.module == "implied_concepts":
         from tasks.implied_concepts_engine import ImpliedConceptsEngine
         engine = ImpliedConceptsEngine(args)
+    elif args.module == "data_generation":
+        from tasks.data_generation_engine import DataGenerationEngine
+        engine = DataGenerationEngine(args)
+    elif args.module == "baseline":
+        from tasks.baseline_engine import BaselineEngine
+        engine = BaselineEngine(args)
+    else:
+        raise ValueError(f"Unknown module {args.module}")
 
     # 3. Handle "task" only if it exists
     if hasattr(args, "task"):

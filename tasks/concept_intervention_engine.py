@@ -10,7 +10,7 @@ class ConceptInterventionEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
         self.output_dir = os.path.join(
-            "results", "concept_outputs", self.dataset_tag, args.output_dir
+            "verified_results", "concept_outputs", self.dataset_tag, args.output_dir
         )
         self._get_model()
 

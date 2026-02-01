@@ -48,6 +48,9 @@ def common_args(module_name):
 
     # directories
     parser.add_argument('--output_dir', type=str, default='output')
+    
+    # random seed
+    parser.add_argument('--seed', type=int, default=0)
 
     return parser
 
@@ -85,9 +88,9 @@ def train_args():
     parser.add_argument('--completions_per_prompt', type=int, default=6)
     parser.add_argument('--loss_computed_on', type=str, default="explanation", choices=["decision", "explanation", "both"])
     parser.add_argument('--debug', action='store_true')
-    parser.add_argument('--seed', type=int, default=0)
     
     # Save and Logging settings
+    parser.add_argument('--run_name', type=str, default=None)
     parser.add_argument('--output_dir', type=str, default='results/grpo_training')
     parser.add_argument('--logging_steps', type=int, default=1)
     parser.add_argument('--save_steps', type=int, default=25)
@@ -161,6 +164,29 @@ def implied_args(extra_args=None):
 
     return parser.parse_args(extra_args)
 
+def data_generation_args(extra_args=None):
+    base = common_args("data_generation")
+    parser = argparse.ArgumentParser(parents=[base])
+
+    parser.add_argument('--response_dir', type=str, default='output')
+    parser.add_argument('--intervention_dir', type=str, default='output')
+    
+    return parser.parse_args(extra_args)
+
+def baseline_args(extra_args=None):
+    base = common_args("baseline")
+    parser = argparse.ArgumentParser(parents=[base])
+
+    parser.add_argument('--cot', action='store_true')
+    parser.add_argument('--few_shot', action='store_true')
+    parser.add_argument('--few_shot_prompt_name', type=str, default='few_shot_cot_prompt')
+    parser.add_argument('--add_instr', type=str, default=None)
+    parser.add_argument('--knn_rank', action='store_true')
+    
+    parser.add_argument('--response_dir', type=str, default='output')
+    parser.add_argument('--max_samples', type=int, default=100000000)
+
+    return parser.parse_args(extra_args)
 
 argumentDic = {
     "faithfulness": faithfulness_args,
@@ -168,4 +194,6 @@ argumentDic = {
     "model_response": response_args,
     "implied_concepts": implied_args,
     "verification": verification_args,
+    "data_generation": data_generation_args,
+    "baseline": baseline_args
 }

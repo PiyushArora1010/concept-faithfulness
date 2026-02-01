@@ -2,7 +2,7 @@ import json
 
 from module.utils import get_language_model
 from module.utils import get_dataset
-from module.utils import PromptingStrategy
+from module.utils import PromptingStrategy, set_seed
 
 class Engine:
     def __init__(self, args):
@@ -11,7 +11,7 @@ class Engine:
             setattr(self, key, value)
         self.dataset_tag = self.dataset
         self._get_dataset()
-        
+        set_seed(self.seed)
         if ".json" in self.example_indices:
             with open(self.example_indices, 'r') as f:
                 self.example_indices = json.load(f)

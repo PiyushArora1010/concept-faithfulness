@@ -48,7 +48,6 @@ if __name__ == '__main__':
     args = train_args()
     print0("Setting up training engine...")
     engine = TrainEngineGRPO(args)
-    set_seed(args.seed)
     
     print0("Preparing model and datasets...")
     model, tokenizer = engine._get_model_and_tokenizer()
@@ -90,7 +89,7 @@ if __name__ == '__main__':
         adam_beta1=0.9,
         adam_beta2=0.99,
         weight_decay=0.05,
-        warmup_ratio=0.05,
+        warmup_ratio=0,
 
         logging_steps=args.logging_steps,  #1,
         
@@ -117,7 +116,7 @@ if __name__ == '__main__':
         data_seed = args.seed,
     )
 
-    trainer = DecisionMaskedTrainerGRPO(
+    trainer = GRPOTrainer(
         model=model,
         processing_class=tokenizer,
         reward_funcs=[
@@ -127,7 +126,6 @@ if __name__ == '__main__':
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
-        engine = engine,
     )
     
     print0("Starting training...")

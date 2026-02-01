@@ -13,6 +13,7 @@ implied_concepts/
 faithfulness_scores/
 wandb/
 unsloth_*/
+.gradio/
 
 logs/
 *.sh

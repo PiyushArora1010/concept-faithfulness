@@ -1,11 +1,11 @@
 import os
+import random
 import json
 import copy
 
+from tqdm import tqdm
 from module.utils import PromptingStrategy
-
 from tasks.engine import Engine
-from module.models import unslothModel
 
 class ModelResponseEngine(Engine):
     def __init__(self, args):
@@ -15,7 +15,7 @@ class ModelResponseEngine(Engine):
             "results", "model_responses", self.dataset_tag, args.output_dir
         )
         self._get_model()
-        
+
     def _get_original_responses_batch(self, example_indices):
         prompts = []
         for cnt, example_idx in enumerate(example_indices):            
