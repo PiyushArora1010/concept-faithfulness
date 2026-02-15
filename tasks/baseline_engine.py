@@ -218,7 +218,8 @@ class BaselineEngine(Engine):
                 "response_n=0.json"
             )
             if not os.path.exists(answer_file):
-                raise ValueError(f"Original answer file not found for example {example_idx} at {answer_file}")
+                print(f"Original answer file not found for example {example_idx} at {answer_file}")
+                continue
             with open(answer_file, 'r') as f:
                 answer = json.load(f)['answer']
             

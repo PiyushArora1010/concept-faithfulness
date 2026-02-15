@@ -30,6 +30,7 @@ class Engine:
             max_tokens=self.model_max_tokens, 
             temperature=self.model_temperature,
             batch_size=self.model_batch_size,
+            load_in_4bit=self.load_in_4bit,
             thinking=self.model_thinking
         )
     

@@ -31,23 +31,23 @@ def print0(*args, **kwargs):
         print(*args, **kwargs)
 
 
-def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4, thinking=False):
+def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4, load_in_4bit=False, thinking=False):
     if model_tag == "Llama3.2_1B":
-        return Model(name="meta-llama/Llama-3.2-1B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
+        return Model(name="meta-llama/Llama-3.2-1B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left")
     elif model_tag == "Llama3.1_8B":
-        return Model(name="meta-llama/Llama-3.1-8B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
+        return Model(name="meta-llama/Llama-3.1-8B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left")
     elif model_tag == "Llama3.3_70B":
-        return Model(name="meta-llama/Llama-3.3-70B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left")
+        return Model(name="meta-llama/Llama-3.3-70B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left")
     elif model_tag == "Qwen3_4B":
-        return Model(name="Qwen/Qwen3-4B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left", thinking=thinking)
+        return Model(name="Qwen/Qwen3-4B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left", thinking=thinking)
     elif model_tag == "Qwen3_8B":
-        return Model(name="Qwen/Qwen3-8B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left", thinking=thinking)
+        return Model(name="Qwen/Qwen3-8B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left", thinking=thinking)
     elif model_tag == "Qwen3_14B":
-        return Model(name="Qwen/Qwen3-14B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left", thinking=thinking)
+        return Model(name="Qwen/Qwen3-14B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left", thinking=thinking)
     elif model_tag == "Qwen3_32B":
-        return Model(name="Qwen/Qwen3-32B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, padding_side="left", thinking=thinking)
+        return Model(name="Qwen/Qwen3-32B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left", thinking=thinking)
     else:
-        raise ValueError(f"Unsupported model name: {model_tag}")
+        return Model(name=model_tag, max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left", thinking=thinking)
     
 def get_dataset(dataset_name, dataset_path):
     if dataset_name == "bbq":

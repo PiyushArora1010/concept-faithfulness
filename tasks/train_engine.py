@@ -9,117 +9,124 @@ from vllm import SamplingParams
 from openai import AsyncOpenAI
 
 from tasks.engine import Engine
-from module.datasets.dataset import HF_Dataset, ConditionsGRPODataset
+from module.datasets.dataset import GRPODataset, ConditionsGRPODataset
 from module.utils import get_language_model, PromptingStrategy, parse_llm_response_implied_concepts
 
 import torch
 from unsloth import FastLanguageModel
 from trl import GRPOTrainer
 
-class DecisionMaskedTrainerGRPO(GRPOTrainer):
-    def __init__(self, *args, engine, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.engine = engine
+# class DecisionMaskedTrainerGRPO(GRPOTrainer):
+#     def __init__(self, *args, engine, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.engine = engine
     
-    def _get_decision_index(self, completion_text, processing_class):
-        answer_found = self.engine.dataset.answer_starting_index(completion_text, self.engine.prompting_strategy)
+#     def _get_decision_index(self, completion_text, processing_class):
+#         answer_found = self.engine.dataset.answer_starting_index(completion_text, self.engine.prompting_strategy)
 
-        if answer_found < 0:
-            return [], []
+#         if answer_found < 0:
+#             return [], []
 
-        encoding = processing_class(
-            completion_text,
-            add_special_tokens=False,
-            return_offsets_mapping=True,
-        )
+#         encoding = processing_class(
+#             completion_text,
+#             add_special_tokens=False,
+#             return_offsets_mapping=True,
+#         )
 
-        offsets = encoding["offset_mapping"]
-        full_ids = encoding["input_ids"]
+#         offsets = encoding["offset_mapping"]
+#         full_ids = encoding["input_ids"]
 
-        answer_token_start = -1
-        for i, (start, end) in enumerate(offsets):
-            if start <= answer_found < end:
-                answer_token_start = i
-                break
+#         answer_token_start = -1
+#         for i, (start, end) in enumerate(offsets):
+#             if start <= answer_found < end:
+#                 answer_token_start = i
+#                 break
 
-        if answer_token_start == -1:
-            return [], []
+#         if answer_token_start == -1:
+#             return [], []
 
-        explanation_indices = list(range(0, answer_token_start))
-        decision_indices = list(range(answer_token_start, len(full_ids)))
+#         explanation_indices = list(range(0, answer_token_start))
+#         decision_indices = list(range(answer_token_start, len(full_ids)))
 
-        return explanation_indices, decision_indices
+#         return explanation_indices, decision_indices
     
-    def _generate_and_score_completions(self, inputs):
-        outputs = super()._generate_and_score_completions(inputs)
-        if self.engine.loss_computed_on == "both":
-            return outputs
+#     def _generate_and_score_completions(self, inputs):
+#         outputs = super()._generate_and_score_completions(inputs)
+#         if self.engine.loss_computed_on == "both":
+#             return outputs
 
-        completion_ids = outputs["completion_ids"]
-        completion_mask = outputs["completion_mask"]
+#         completion_ids = outputs["completion_ids"]
+#         completion_mask = outputs["completion_mask"]
 
-        completions_text = self.processing_class.batch_decode(
-            completion_ids, skip_special_tokens=True
-        )
+#         completions_text = self.processing_class.batch_decode(
+#             completion_ids, skip_special_tokens=True
+#         )
 
-        custom_masks = []
+#         custom_masks = []
 
-        for i, (comp_text, comp_ids) in enumerate(zip(completions_text, completion_ids)):
+#         for i, (comp_text, comp_ids) in enumerate(zip(completions_text, completion_ids)):
 
-            explanation_indices, decision_indices = self._get_decision_index(
-                comp_text, self.processing_class
-            )
+#             explanation_indices, decision_indices = self._get_decision_index(
+#                 comp_text, self.processing_class
+#             )
             
-            explanation_indices = [index for index in explanation_indices if index < len(comp_ids)]
-            decision_indices = [index for index in decision_indices if index < len(comp_ids)]
+#             explanation_indices = [index for index in explanation_indices if index < len(comp_ids)]
+#             decision_indices = [index for index in decision_indices if index < len(comp_ids)]
             
-            custom_mask = torch.zeros_like(comp_ids, dtype=torch.int)
+#             custom_mask = torch.zeros_like(comp_ids, dtype=torch.int)
 
-            if decision_indices and explanation_indices:
-                if self.engine.loss_computed_on == "decision":
-                    custom_mask[decision_indices] = 1
+#             if decision_indices and explanation_indices:
+#                 if self.engine.loss_computed_on == "decision":
+#                     custom_mask[decision_indices] = 1
 
-                elif self.engine.loss_computed_on == "explanation":
-                    custom_mask[explanation_indices] = 1
+#                 elif self.engine.loss_computed_on == "explanation":
+#                     custom_mask[explanation_indices] = 1
                     
-                else:
-                    raise ValueError(f"Invalid loss_computed_on: {self.engine.loss_computed_on}")
+#                 else:
+#                     raise ValueError(f"Invalid loss_computed_on: {self.engine.loss_computed_on}")
 
-            custom_masks.append(custom_mask)
+#             custom_masks.append(custom_mask)
 
-        decision_explanation_mask = torch.stack(custom_masks).to(completion_ids.device)
+#         decision_explanation_mask = torch.stack(custom_masks).to(completion_ids.device)
 
-        outputs["completion_mask"] = completion_mask * decision_explanation_mask
+#         outputs["completion_mask"] = completion_mask * decision_explanation_mask
         
-        if self.engine.debug:
-            final_mask = outputs["completion_mask"]
-            print("\n[DEBUG] ===== GRPO TOKEN MASKING =====")
-            for i in range(min(2, final_mask.shape[0])):
-                mask = final_mask[i]
+#         if self.engine.debug:
+#             final_mask = outputs["completion_mask"]
+#             print("\n[DEBUG] ===== GRPO TOKEN MASKING =====")
+#             for i in range(min(2, final_mask.shape[0])):
+#                 mask = final_mask[i]
                 
-                print(f"\n[DEBUG] Sample {i}:")
+#                 print(f"\n[DEBUG] Sample {i}:")
                 
-                # Get tokens being updated
-                updated_indices = [idx for idx in range(len(mask)) if mask[idx] == 1]
-                if updated_indices:
-                    updated_ids = completion_ids[i][updated_indices]
-                    updated_text = self.processing_class.decode(updated_ids, skip_special_tokens=False)
-                    print(f"[DEBUG] Text being updated (mask=1):")
-                    print(f"{updated_text}")
+#                 # Get tokens being updated
+#                 updated_indices = [idx for idx in range(len(mask)) if mask[idx] == 1]
+#                 if updated_indices:
+#                     updated_ids = completion_ids[i][updated_indices]
+#                     updated_text = self.processing_class.decode(updated_ids, skip_special_tokens=False)
+#                     print(f"[DEBUG] Text being updated (mask=1):")
+#                     print(f"{updated_text}")
                 
-                # Get tokens NOT being updated
-                not_updated_indices = [idx for idx in range(len(mask)) if mask[idx] == 0]
-                if not_updated_indices:
-                    not_updated_ids = completion_ids[i][not_updated_indices]
-                    not_updated_text = self.processing_class.decode(not_updated_ids, skip_special_tokens=False)
-                    print(f"\n[DEBUG] Text NOT being updated (mask=0):")
-                    print(f"{not_updated_text}")
+#                 # Get tokens NOT being updated
+#                 not_updated_indices = [idx for idx in range(len(mask)) if mask[idx] == 0]
+#                 if not_updated_indices:
+#                     not_updated_ids = completion_ids[i][not_updated_indices]
+#                     not_updated_text = self.processing_class.decode(not_updated_ids, skip_special_tokens=False)
+#                     print(f"\n[DEBUG] Text NOT being updated (mask=0):")
+#                     print(f"{not_updated_text}")
         
-        return outputs
+#         return outputs
 
 class TrainEngineGRPO(Engine):
     def __init__(self, args):
         super().__init__(args)
+        self.output_dir = os.path.join(
+            "results",
+            "training",
+            self.dataset_tag,
+            "grpo",
+            args.output_dir
+        )
         os.makedirs(self.output_dir, exist_ok=True)
         self.prompting_strategy = PromptingStrategy(args.cot, args.few_shot, args.knn_rank, args.few_shot_prompt_name, args.add_instr)
         self.implied_client = None
@@ -129,56 +136,36 @@ class TrainEngineGRPO(Engine):
     def _prepare_datasets(self, tokenizer):
         num_examples = min(len(self.dataset), self.max_examples)
 
-        train_count = int(self.train_size * num_examples)
-        val_count = int(self.val_size * num_examples)
-
         all_indices = list(range(num_examples))
-
-        train_indices = set(random.sample(all_indices, train_count))
-        remaining_indices = list(set(all_indices) - train_indices)
-
-        val_indices = set(random.sample(remaining_indices, val_count))
-        test_indices = list(set(remaining_indices) - val_indices)
-
+        random.shuffle(all_indices)
+        
+        val_indices = set(self.example_indices)
+        train_indices = set(all_indices) - val_indices
+        
         file_name = os.path.join(self.output_dir, "data_splits.json")
         with open(file_name, "w") as f:
             json.dump({
                 "train_indices": list(train_indices),
                 "val_indices": list(val_indices),
-                "test_indices": list(test_indices),
             }, f, indent=4)
 
-        train_dataset = HF_Dataset(
+        train_dataset = GRPODataset(
             dataset=self.dataset,
             prompting_strategy=self.prompting_strategy,
             counterfactual_data_path=self.counterfactual_data_path,
-            response_data_path=self.response_data_path,
             example_indices=train_indices,
-            tokenizer=tokenizer,
-            verify=self.verify,
+            tokenizer=tokenizer
         )
 
-        val_dataset = HF_Dataset(
+        val_dataset = GRPODataset(
             dataset=self.dataset,
             prompting_strategy=self.prompting_strategy,
             counterfactual_data_path=self.counterfactual_data_path,
-            response_data_path=self.response_data_path,
             example_indices=val_indices,
-            tokenizer=tokenizer,
-            verify=self.verify,
-        )
-
-        test_dataset = HF_Dataset(
-            dataset=self.dataset,
-            prompting_strategy=self.prompting_strategy,
-            counterfactual_data_path=self.counterfactual_data_path,
-            response_data_path=self.response_data_path,
-            example_indices=test_indices,
-            tokenizer=tokenizer,
-            verify=self.verify,
+            tokenizer=tokenizer
         )
         
-        return train_dataset, val_dataset, test_dataset
+        return train_dataset, val_dataset
 
     # MAIN MODEL
     def _get_model_and_tokenizer(self):
@@ -231,6 +218,44 @@ class TrainEngineGRPO(Engine):
         tasks = [_call(prompt) for prompt in prompts]
         return await asyncio.gather(*tasks)
 
+    # GET ORIGINAL ANSWERS
+    def _get_original_answers(self, model, prompts, example_indices):
+        sampling_params = SamplingParams(
+            temperature=0,
+            max_tokens=self.model_max_tokens,
+        )
+        answers = []
+        responses = []
+        
+        with torch.no_grad():
+            # Process in batches
+            for i in range(0, len(prompts), self.model_batch_size):
+                batch_end = min(i + self.model_batch_size, len(prompts))
+                batch_prompts = prompts[i:batch_end]
+                batch_indices = example_indices[i:batch_end]
+                
+                outputs = model.fast_generate(
+                    batch_prompts,
+                    sampling_params=sampling_params,
+                )
+                outputs = [output.outputs[0].text for output in outputs]
+                
+                # Extract answers from batch
+                for batch_idx, response in enumerate(outputs):
+                    corresponding_example_idx = batch_indices[batch_idx]
+                    try:
+                        answer = self.dataset.extract_answer(
+                            response,
+                            self.prompting_strategy,
+                            idx=corresponding_example_idx
+                        )
+                    except:
+                        answer = -1
+                    answers.append(answer)
+                    responses.append(response)
+        
+        return answers, responses
+        
     # PROCESSING RESPONSES
     def _get_answer_from_response(self, response, example_idx):
         try:
@@ -240,13 +265,12 @@ class TrainEngineGRPO(Engine):
                 idx=example_idx
             )
         except:
-            answer = "N/A"
+            answer = -1
         return answer
 
     def _get_answers_from_responses(self, responses, example_indices):
         answers = [self._get_answer_from_response(response, example_idx) for response, example_idx in zip(responses, example_indices)]
-        mask = torch.tensor([True if answer != "N/A" else False for answer in answers])
-        return answers, mask
+        return answers
 
     def _get_implied_concepts(self, responses, answers, concepts_list, concept_values_list, intervention_dict_list):
         concepts_to_check_len = []
@@ -290,11 +314,10 @@ class TrainEngineGRPO(Engine):
                 )
                 implied_concept = 1 if concept_decision[intervented_concept] == 1 else 0
             except:
-                implied_concept = "N/A"
+                implied_concept = -1
             implied_concepts.append(implied_concept)
             
-        mask = torch.tensor([True if ic != "N/A" else False for ic in implied_concepts])
-        return implied_concepts, mask, implied_concepts_responses
+        return implied_concepts, implied_concepts_responses
 
     def _get_successful_interventions(self, answers, original_answers):
         successful_interventions = []
@@ -302,22 +325,24 @@ class TrainEngineGRPO(Engine):
             outer_index = index
             original_answer = original_answers[outer_index]
             successful_intervention = int(answer != original_answer)
+            
+            if original_answer == -1 or answer == -1:
+                successful_intervention = -1
+            
             successful_interventions.append(successful_intervention)
         return successful_interventions
     
     # REWARD FUNCTION (FAITHFULNESS)
-    def _phiCCT(self, implied_concepts, successful_interventions, mask):
+    def _phiCCT(self, implied_concepts, successful_interventions):
         rewards = []
         for index, (implied_concept, successful_intervention) in enumerate(zip(implied_concepts, successful_interventions)):
             
-            if not mask[index]:
-                rewards.append(0.0)
-                continue
-            
-            if successful_intervention == implied_concept:
+            if successful_intervention == -1 or implied_concept == -1:
+                reward = 0.0
+            elif successful_intervention == implied_concept:
                 reward = 1.0
             else:
-                reward = 0.0
+                reward = -1.0
             rewards.append(reward)
 
         return rewards
@@ -370,7 +395,7 @@ class TrainEngineConditionsGRPO(Engine):
             load_in_4bit=True,  # False for LoRA 16bit
             fast_inference=True,  # Enable vLLM fast inference
             max_lora_rank=self.lora_rank,
-            gpu_memory_utilization=0.45,  # Reduce if out of memory
+            gpu_memory_utilization=0.8,  # Reduce if out of memory
         )
         
         if self.lora:
@@ -390,23 +415,17 @@ class TrainEngineConditionsGRPO(Engine):
     def _prepare_datasets(self, tokenizer):
         num_examples = min(len(self.dataset), self.max_examples)
 
-        train_count = int(self.train_size * num_examples)
-        val_count = int(self.val_size * num_examples)
-
         all_indices = list(range(num_examples))
-
-        train_indices = set(random.sample(all_indices, train_count))
-        remaining_indices = list(set(all_indices) - train_indices)
-
-        val_indices = set(random.sample(remaining_indices, val_count))
-        test_indices = list(set(remaining_indices) - val_indices)
-
-        file_name = os.path.join(self.output_dir, "data_splits_conditions_grpo.json")
+        random.shuffle(all_indices)
+        
+        val_indices = set(self.example_indices)
+        train_indices = set(all_indices) - val_indices
+        
+        file_name = os.path.join(self.output_dir, "data_splits.json")
         with open(file_name, "w") as f:
             json.dump({
                 "train_indices": list(train_indices),
                 "val_indices": list(val_indices),
-                "test_indices": list(test_indices),
             }, f, indent=4)
 
         train_dataset = ConditionsGRPODataset(
@@ -425,21 +444,13 @@ class TrainEngineConditionsGRPO(Engine):
             tokenizer=tokenizer,
         )
 
-        test_dataset = ConditionsGRPODataset(
-            dataset=self.dataset,
-            prompting_strategy=self.prompting_strategy,
-            counterfactual_data_path=self.counterfactual_data_path,
-            example_indices=test_indices,
-            tokenizer=tokenizer,
-        )
-        
-        return train_dataset, val_dataset, test_dataset
+        return train_dataset, val_dataset
 
     def _get_implied_concepts(self, responses, answers, concepts_list, concept_values_list, example_indices):
         concepts_to_check_len = []
         prompts = []
         implied_concepts = []
-        masks = []
+
         for index, response in enumerate(responses):         
             example_idx = example_indices[index]   
             concepts = concepts_list[index]
@@ -472,42 +483,12 @@ class TrainEngineConditionsGRPO(Engine):
                     len_concepts,
                 )
                 assert len(concept_decision) == len_concepts
-                masks.append(1)
             except:
                 concept_decision = [-1] * len_concepts
-                masks.append(0)
             implied_concepts.append(concept_decision)
             
-        return implied_concepts, masks, implied_concepts_responses
+        return implied_concepts, implied_concepts_responses
 
-    def _get_implied_conditions_from_responses(self, responses, total_conditions):
-        implied_conditions_bool = []
-        masks = []
-        for response, total_cond in zip(responses, total_conditions):
-            used_conditions = []
-            match = re.search(r"Conditions Used:\s*(.*?)(?=\n\n|\n<Answer>|$)", response, re.DOTALL)
-            mask = 0
-            
-            if match:
-                conditions_str = match.group(1)
-                condition_matches = re.findall(r"<Condition (\d+)>", conditions_str)
-                used_conditions = [int(num) for num in condition_matches]
-                if used_conditions:
-                    mask = 1
-            
-            if len(used_conditions) == 0:
-                implied_conditions = [-1] * total_cond
-            else:
-                implied_conditions = [0] * total_cond
-                for cond_idx in used_conditions:
-                    if cond_idx < total_cond:
-                        implied_conditions[cond_idx] = 1
-                
-            implied_conditions_bool.append(implied_conditions)
-            masks.append(mask)
-        
-        return implied_conditions_bool, masks
-    
     def _get_answers_from_responses(self, responses, example_indices):
         answers = []
         for example_index, response in zip(example_indices, responses):

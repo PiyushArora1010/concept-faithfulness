@@ -18,6 +18,8 @@ def faithfulness_args(extra_args=None):
     parser.add_argument('--responses_counterfactual_dir', type=str, default='model_responses')
     parser.add_argument('--implied_concepts_dir', type=str, default='output')
     parser.add_argument('--output_path', type=str, default='output')
+    
+    parser.add_argument('--seed', type=int, default=0)
 
     return parser.parse_args(extra_args)
 
@@ -41,6 +43,7 @@ def common_args(module_name):
     parser.add_argument('--model_thinking', action='store_true')
     parser.add_argument('--model_temperature', type=float, default=0)
     parser.add_argument('--model_batch_size', type=int, default=4)
+    parser.add_argument('--load_in_4bit', action='store_true')
 
     # batching
     parser.add_argument('--example_batch_size', type=int, default=8)
@@ -91,7 +94,7 @@ def train_args():
     
     # Save and Logging settings
     parser.add_argument('--run_name', type=str, default=None)
-    parser.add_argument('--output_dir', type=str, default='results/grpo_training')
+    parser.add_argument('--output_dir', type=str, default='deleteme')
     parser.add_argument('--logging_steps', type=int, default=1)
     parser.add_argument('--save_steps', type=int, default=25)
     parser.add_argument('--eval_steps', type=int, default=25)
@@ -110,8 +113,56 @@ def train_args():
     parser.add_argument('--response_data_path', type=str, default="results/model_responses/bbq/Llama3.3_70B/Qwen3_4B")
     parser.add_argument('--max_examples', type=int, default=100000000)
     
-    return parser.parse_args()
+    parser.add_argument('--seed', type=int, default=0)
     
+    return parser.parse_args()
+
+def sft_args(extra_args=None):
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--train_size', type=float, default=0.7)
+    
+    parser.add_argument('--explanations_data_path', type=str, default='output')
+
+    # Prompt to get model response
+    parser.add_argument('--cot', action='store_true')
+    parser.add_argument('--add_instr', type=str, default=None)
+    parser.add_argument('--knn_rank', action='store_true')
+    parser.add_argument('--few_shot', action='store_true')
+    parser.add_argument('--few_shot_prompt_name', type=str, default='few_shot_cot_prompt')
+
+    # Model settings
+    parser.add_argument('--model_tag', type=str, default='unsloth/Qwen3-4B')
+    parser.add_argument('--model_max_tokens', type=int, default=2048)
+    parser.add_argument('--model_batch_size', type=int, default=8)
+
+    # Training settings
+    parser.add_argument('--learning_rate', type=float, default=5e-6)
+    parser.add_argument('--weight_decay', type=float, default=1e-5)
+    parser.add_argument('--epochs', type=int, default=1)
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=4)
+    
+    # Save and Logging settings
+    parser.add_argument('--run_name', type=str, default=None)
+    parser.add_argument('--output_dir', type=str, default='deleteme')
+    parser.add_argument('--save_steps', type=int, default=25)
+    parser.add_argument('--eval_steps', type=int, default=25)
+    
+    # LoRA settings
+    parser.add_argument('--lora', action='store_true')
+    parser.add_argument('--lora_rank', type=int, default=16)
+    parser.add_argument('--lora_layers', type=str, nargs='+', default=None)
+    
+    # Data settings
+    parser.add_argument('--dataset', type=str, default='bbq')
+    parser.add_argument('--dataset_path', type=str, default='data/bbq')
+    parser.add_argument('--example_indices', type=str, default='all')
+    parser.add_argument('--max_examples', type=int, default=100000000)
+    
+    # Seed
+    parser.add_argument('--seed', type=int, default=0)
+
+    return parser.parse_args()
 
 def concept_args(extra_args=None):
     base = common_args("concept_intervention")
@@ -134,7 +185,8 @@ def verification_args(extra_args=None):
     base = common_args("verification")
     parser = argparse.ArgumentParser(parents=[base])
 
-    parser.add_argument('--verification_base_prompt_name', type=str, default='intervention_verification_prompt')
+    parser.add_argument('--verification_question_base_prompt_name', type=str, default='intervention_question_verification_prompt')
+    parser.add_argument('--verification_anschoices_base_prompt_name', type=str, default='intervention_anschoices_verification_prompt')
     
     return parser.parse_args(extra_args)
 

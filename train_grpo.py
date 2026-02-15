@@ -2,23 +2,23 @@ import os
 import wandb
 import argparse
 import unsloth
-from tasks.train_engine import TrainEngineGRPO, DecisionMaskedTrainerGRPO
+from tasks.train_engine import TrainEngineGRPO
 from module.arguments import train_args
 from module.utils import print0, set_seed
 from trl import GRPOConfig, GRPOTrainer
 from vllm import SamplingParams
 
 def reward_function_faithfulness(prompts, completions, **kwargs):
-    global engine
+    global engine, model, tokenizer
     example_indices = kwargs["example_id"]
     intervention_dict_list = kwargs["intervention_dict"]
-    original_answers = kwargs["original_answers"]
+    original_prompts = kwargs["original_prompt"]
     concepts_list = kwargs["concepts"]
     concept_values_list = kwargs["concept_values"]
     
-    answers, answers_mask = engine._get_answers_from_responses(completions, kwargs.get("example_id"))
+    answers = engine._get_answers_from_responses(completions, kwargs.get("example_id"))
  
-    implied_concepts, implied_mask, implied_concepts_responses = engine._get_implied_concepts(
+    implied_concepts, implied_concepts_responses = engine._get_implied_concepts(
         completions,
         answers,
         concepts_list,
@@ -26,10 +26,41 @@ def reward_function_faithfulness(prompts, completions, **kwargs):
         intervention_dict_list,
     )
     
-    final_mask = (answers_mask & implied_mask)
+    original_prompts = [original_prompts[i] for i in range(0, len(completions), engine.completions_per_prompt)]
+    original_answers, original_responses = engine._get_original_answers(
+        model,
+        original_prompts,
+        example_indices
+    )
+    original_answers = [ans for ans in original_answers for _ in range(engine.completions_per_prompt)] # repeat answers per completion
+    
     successful_interventions = engine._get_successful_interventions(answers, original_answers)
 
-    rewards = engine._phiCCT(implied_concepts, successful_interventions, final_mask)
+    rewards = engine._phiCCT(implied_concepts, successful_interventions)
+    
+    for ix, answer in enumerate(answers):
+        if answer != -1:
+            rewards[ix] += 0.1  # Reward for having an answer
+    
+    for ix, original_answer in enumerate(original_answers):
+        if original_answer != -1:
+            rewards[ix] += 0.1  # Reward for having an original answer
+    
+    logging_dict = {
+        "Example ID": example_indices[0],
+        "CounterFactual Response": completions[0],
+        "CounterFactual Answer": answers[0],
+        "Original Response": original_responses[0],
+        "Original Answer": original_answers[0],
+        
+        "Intervention String": intervention_dict_list[0]["intervention_str"],
+        "Implied Concept?": implied_concepts[0],
+        "Successful Intervention?": successful_interventions[0],
+        "Reward": rewards[0],
+    }
+    for key, value in logging_dict.items():
+        print0(f"{key}: {value}")
+        print0("-"*20)
  
     return rewards
 
@@ -58,20 +89,16 @@ if __name__ == '__main__':
         max_tokens = args.model_max_tokens
     )
 
-    train_dataset, val_dataset, test_dataset = engine._prepare_datasets(tokenizer)
+    train_dataset, val_dataset = engine._prepare_datasets(tokenizer)
     
     print0(f"Train dataset size: {len(train_dataset)}")
     print0(f"Validation dataset size: {len(val_dataset)}")
-    print0(f"Test dataset size: {len(test_dataset)}")
 
     max_prompt_length = args.model_max_tokens
     max_seq_length = 2 * args.model_max_tokens
 
-    RUN_NAME = f"grpo_faithfulness_{args.dataset}_{args.model_tag.replace('/', '-')}"
+    RUN_NAME = engine.run_name
 
-    output_dir = os.path.join(args.output_dir, args.dataset, args.model_tag.replace('/', '-'))
-    os.makedirs(output_dir, exist_ok=True)
-    
     wandb.init(
         project="Faithfulness ISO",
         name=RUN_NAME,  
@@ -95,8 +122,9 @@ if __name__ == '__main__':
         
         temperature=args.model_temperature,  #0.7,
         
-        per_device_train_batch_size=args.model_batch_size,
-        per_device_eval_batch_size=args.model_batch_size,
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        eval_accumulation_steps = args.gradient_accumulation_steps,
         gradient_accumulation_steps=args.gradient_accumulation_steps,  # Increase to 4 for smoother training
         num_generations=args.completions_per_prompt,  # Decrease if out of memory
         max_prompt_length=max_prompt_length,
@@ -108,7 +136,7 @@ if __name__ == '__main__':
         
         max_grad_norm=0.3,
         report_to="wandb",  # Can use Weights & Biases
-        output_dir=output_dir,  # Directory to save results
+        output_dir=engine.output_dir,  # Directory to save results
         
         run_name = RUN_NAME,
         
@@ -125,7 +153,7 @@ if __name__ == '__main__':
         ],
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=val_dataset,
+        eval_dataset=val_dataset
     )
     
     print0("Starting training...")

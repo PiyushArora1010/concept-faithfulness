@@ -1,6 +1,5 @@
 import torch
 from vllm import LLM, SamplingParams
-from vllm.lora.request import LoRARequest
 from transformers import AutoTokenizer
 
 class Model:
@@ -10,6 +9,7 @@ class Model:
         max_tokens=256,
         temperature=0.7,
         batch_size=64,
+        load_in_4bit=False,
         padding_side="left",
         thinking=False,
     ):
@@ -30,7 +30,8 @@ class Model:
         self.llm = LLM(
             model=name,
             tensor_parallel_size=torch.cuda.device_count(),
-            dtype="bfloat16",
+            dtype="auto",
+            # load_in_4bit=load_in_4bit,
             trust_remote_code=True,
             gpu_memory_utilization=0.9,
             max_model_len=4096,
@@ -82,7 +83,7 @@ if __name__ == "__main__":
     import time
 
     model = Model(
-        name="Qwen/Qwen3-8B",
+        name="/rds/general/user/pa524/home/concept-faithfulness/results/SFT/bbq/Qwen3_4B_all_concepts/model",
         max_tokens=256,
         temperature=0.7,
         padding_side="left",

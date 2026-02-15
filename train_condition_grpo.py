@@ -46,7 +46,7 @@ def reward_function_faithfulness(prompts, completions, **kwargs):
     ]
 
     # Get Implied Concepts and mask for each response
-    implied_concepts_bool, implied_masks, implied_concepts_responses = engine._get_implied_concepts(
+    implied_concepts_bool, implied_concepts_responses = engine._get_implied_concepts(
         completions,
         example_answers,
         concepts_list,
@@ -60,12 +60,15 @@ def reward_function_faithfulness(prompts, completions, **kwargs):
         successful_interventions[i],
     ) for i in range(len(completions))]
     
-    # Additional reward for providing conditions and answer
-    for ix, (implied_mask, answer) in enumerate(zip(implied_masks, example_answers)):
-        if implied_mask:
-            rewards[ix] += 0.25  # reward for providing conditions
+    for ix, answer in enumerate(example_answers):
         if answer != -1:
-            rewards[ix] += 0.25  # reward for providing answer
+            rewards[ix] += 0.1  # Reward for having an answer
+    
+    for ix, counterfactual_answer in enumerate(counterfactual_answers):
+        # total -1 entries in counterfactual_answer (List of int)
+        total_no_answer = counterfactual_answer.count(-1)
+        total_concepts_len = max(len(concepts_list[ix]), 1)
+        rewards[ix] += 0.1 * (total_concepts_len - total_no_answer) / total_concepts_len  # Reward for having counterfactual answers
     
     logging_dict = dict(
         {
@@ -97,11 +100,10 @@ if __name__ == '__main__':
         max_tokens = args.model_max_tokens
     )
 
-    train_dataset, val_dataset, test_dataset = engine._prepare_datasets(tokenizer)
+    train_dataset, val_dataset = engine._prepare_datasets(tokenizer)
     
     print0(f"Train dataset size: {len(train_dataset)}")
     print0(f"Validation dataset size: {len(val_dataset)}")
-    print0(f"Test dataset size: {len(test_dataset)}")
 
     max_prompt_length = args.model_max_tokens
     max_seq_length = 2 * args.model_max_tokens
@@ -133,6 +135,7 @@ if __name__ == '__main__':
         
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
+        eval_accumulation_steps = args.gradient_accumulation_steps,
         gradient_accumulation_steps=args.gradient_accumulation_steps,  # Increase to 4 for smoother training
         num_generations=args.completions_per_prompt,  # Decrease if out of memory
         max_prompt_length=max_prompt_length,
@@ -162,8 +165,8 @@ if __name__ == '__main__':
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
-        engine = engine,
     )
     
     print0("Starting training...")
     trainer.train()
+    # model.save_pretrained(os.path.join(engine.output_dir, "model"), tokenizer)

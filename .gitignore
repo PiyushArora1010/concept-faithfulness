@@ -5,12 +5,14 @@ results/
 errors/
 
 concept_outputs/
+double_verify/
 model_responses/
 error_concept_outputs/
 error_model_responses/
 downloads/
 implied_concepts/
 faithfulness_scores/
+verified_results/
 wandb/
 unsloth_*/
 .gradio/
@@ -25,3 +27,12 @@ vllm
 *.o*
 *.pbs
 *.log
+
+walk-the-talk/
+wtt.py
+train_sft.py
+tasks/sft_engine.py
+module/models_hf.py
+examples.py
+=0.4.25
+tasks/data_generation_engine.py

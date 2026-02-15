@@ -11,23 +11,29 @@ class VerificationEngine(Engine):
     def __init__(self, args):
         super().__init__(args)
         self.output_dir = os.path.join(
-            "results", "concept_outputs", self.dataset_tag, args.output_dir
+            "verified_results", "concept_outputs", self.dataset_tag, args.output_dir
         )
         self._get_model()
-
+        
     def _verify_counterfactual_questions_batch(self, example_indices, example_intervention_files, example_interventions_data):
         prompts = []
         cumulative_counts = []
-        # breakpoint()
+
         for cnt, example_idx in enumerate(example_indices):
             cumulative_counts.append(len(prompts))
             for intervention_file, intervention_data in zip(example_intervention_files[cnt], example_interventions_data[cnt]):
-                verification_prompt = self.dataset.format_prompt_qa_verification(
+                verification_prompt_question = self.dataset.format_prompt_question_verification(
                     intervention_data,
-                    verification_base_prompt_name=self.verification_base_prompt_name,
+                    verification_base_prompt_name=self.verification_question_base_prompt_name,
                     idx=example_idx
                 )
-                prompts.append(verification_prompt)
+                verification_prompt_anschoices = self.dataset.format_prompt_anschoices_verification(
+                    intervention_data,
+                    verification_base_prompt_name=self.verification_anschoices_base_prompt_name,
+                    idx=example_idx
+                )
+                prompts.append(verification_prompt_question)
+                prompts.append(verification_prompt_anschoices)
                 # breakpoint()
 
         responses = self.model.batch_generate_response(prompts)
@@ -39,9 +45,12 @@ class VerificationEngine(Engine):
             )
             example_intervention_data = example_interventions_data[cnt]
             for intervention_index in range(len(example_intervention_files[cnt])):
-                global_cnt = cumulative_counts[cnt] + intervention_index
+                # Each intervention has 2 prompts (question and answer choices)
+                global_cnt_question = cumulative_counts[cnt] + (intervention_index * 2)
+                global_cnt_anschoices = cumulative_counts[cnt] + (intervention_index * 2) + 1
                 
-                response = responses[global_cnt]
+                response_question = responses[global_cnt_question]
+                response_anschoices = responses[global_cnt_anschoices]
                 
                 intrv_str = example_intervention_data[intervention_index]["intervention_str"]
                 file_path_verification = os.path.join(
@@ -49,29 +58,50 @@ class VerificationEngine(Engine):
                     f"verification_counterfactual_{self.model_tag}_{intrv_str}.json"
                 )
                 
+                # Parse both verification responses
                 try:
-                    answer = parse_llm_response_verification(
-                        response
-                    )
+                    answer_question = parse_llm_response_verification(response_question)
                 except:
-                    answer = "N/A"
-                    
+                    answer_question = "N/A"
+                
+                try:
+                    answer_anschoices = parse_llm_response_verification(response_anschoices)
+                except:
+                    answer_anschoices = "N/A"
+                
+                # Determine overall verification status
+                # Both must be "YES" for overall verification to be "YES"
+                if answer_question == "YES" and answer_anschoices == "YES":
+                    overall_verification = "YES"
+                elif answer_question == "NO" or answer_anschoices == "NO":
+                    overall_verification = "NO"
+                else:
+                    overall_verification = "N/A"
+                
                 os.makedirs(os.path.dirname(file_path_verification), exist_ok=True)
                 
                 answer_dict = {
-                    "prompt": prompts[global_cnt],
-                    "response": response,
-                    "verification": answer
+                    "question_verification": {
+                        "prompt": prompts[global_cnt_question],
+                        "response": response_question,
+                        "verification": answer_question
+                    },
+                    "anschoices_verification": {
+                        "prompt": prompts[global_cnt_anschoices],
+                        "response": response_anschoices,
+                        "verification": answer_anschoices
+                    },
+                    "verification": overall_verification
                 }
                 
                 with open(file_path_verification, 'w') as f:
                     json.dump(answer_dict, f, indent=4)
                 
-                if answer != "N/A":
-                    print(f"Example {example_idx}, Intervention {intrv_str}: Successfully verified as {answer}.")
+                if overall_verification != "N/A":
+                    print(f"Example {example_idx}, Intervention {intrv_str}: Successfully verified as {overall_verification} (Question: {answer_question}, AnsChoices: {answer_anschoices}).")
                 else:
-                    print(f"Example {example_idx}, Intervention {intrv_str}: Verification failed.")
-    
+                    print(f"Example {example_idx}, Intervention {intrv_str}: Verification failed (Question: {answer_question}, AnsChoices: {answer_anschoices}).")
+                
     def _verify_counterfactual_questions(self):
         batch_size = self.example_batch_size
         
