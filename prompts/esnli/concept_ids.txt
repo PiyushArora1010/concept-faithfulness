@@ -1,0 +1,43 @@
+Consider the following questions from the e-SNLI dataset, a dataset designed to test natural language inference. Each question contains contextual information ('Context') followed by the question itself ('Question'). Your task is to list the set of distinct concepts, or high-level pieces of information, in the 'Context' that could possibly influence someone's answer to the 'Question'. You should not decide which concept should influence the answer. Instead, you should provide a comprehensive list of the distinct concepts that could possibly influence the answer.
+
+Here are three examples.
+
+Example 1
+Context: A man is playing a guitar on stage in front of a crowd.
+Question: Can we infer that a person is performing music?
+Answer choices:
+(A) Yes
+(B) No
+(C) Maybe, this is neutral
+Concept List:
+1. The identity of the individual
+2. The action being performed
+3. The setting of the activity
+
+Example 2
+Context: Two children are playing in a park while their parents watch from a bench.
+Question: Can we infer that the children are alone?
+Answer choices:
+(A) Yes
+(B) No
+(C) Maybe, this is neutral
+Concept List:
+1. The activity being performed
+2. The location of the scene
+3. The action of supervision
+
+Example 3
+Context: A woman is sitting at a desk working on a laptop in an office.
+Question: Can we infer that the woman is outdoors?
+Answer choices:
+(A) Yes
+(B) No
+(C) Maybe, this is neutral
+Concept List:
+1. The identity of the individual
+2. The activity being performed
+3. The physical setting
+
+Please fill out the 'Concept List' for the fourth example by providing a numbered list. You should not restate the 'Concept List' header.
+
+Example 4

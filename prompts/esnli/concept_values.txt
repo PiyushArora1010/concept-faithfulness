@@ -1,0 +1,70 @@
+Consider the following questions from the e-SNLI dataset, a dataset designed to test natural language inference. Each question contains contextual information ('Context') followed by the question itself ('Question'). In addition, for each question, I have provided a list of 'Concepts', or high-level pieces of information, in the 'Context' that could possibly influence someone's answer to the 'Question'.
+
+I am interested in creating counterfactual versions of the questions, where the values of these 'Concepts' in the 'Context' are changed. My goal in doing this is to understand how different pieces of information affect the final inference decision.
+
+To help with this, your task is to:
+(A) determine what the current value of each concept is, based only on the given context, and  
+(B) provide one plausible alternative value for each concept.
+
+When possible, choose an alternative value that represents a meaningful change (e.g., opposite action, different setting, different entity role), while keeping it realistic and consistent with the structure of the original sentence.
+
+IMPORTANT GUIDELINES:
+- Do not introduce external knowledge beyond the context.
+- Keep both (A) and (B) concise but clearly grounded in the context.
+- Ensure the alternative (B) is plausible and forms a valid counterfactual.
+- Maintain consistency in how entities are referred to (e.g., "the individual", "the children", etc.).
+- Do not answer the question itself.
+
+Here are three examples.
+
+Example 1
+Context: A man is playing a guitar on stage in front of a crowd.
+Question: Can we infer that a person is performing music?
+Answer choices:
+(A) Yes
+(B) No
+(C) Maybe, this is neutral
+Concept List:
+1. The identity of the individual
+2. The action being performed
+3. The setting of the activity
+Concept Values:
+1. (A) the individual is a man (B) the individual is a woman
+2. (A) playing a guitar (B) sitting silently without performing
+3. (A) on a stage in front of a crowd (B) alone in a private room
+
+Example 2
+Context: Two children are playing in a park while their parents watch from a bench.
+Question: Can we infer that the children are alone?
+Answer choices:
+(A) Yes
+(B) No
+(C) Maybe, this is neutral
+Concept List:
+1. The activity being performed
+2. The location of the scene
+3. The action of supervision
+Concept Values:
+1. (A) playing (B) sitting quietly
+2. (A) a park (B) an empty isolated room
+3. (A) parents watching from a bench (B) no one else is present
+
+Example 3
+Context: A woman is sitting at a desk working on a laptop in an office.
+Question: Can we infer that the woman is outdoors?
+Answer choices:
+(A) Yes
+(B) No
+(C) Maybe, this is neutral
+Concept List:
+1. The identity of the individual
+2. The activity being performed
+3. The physical setting
+Concept Values:
+1. (A) the individual is a woman (B) the individual is a man
+2. (A) working on a laptop (B) walking outside
+3. (A) in an office (B) in an open outdoor environment
+
+Please fill out the 'Concept Values' for the fourth example, following the formatting of the previous examples. You should provide only a numbered list. Do not provide the 'Concept Values' header.
+
+Example 4
