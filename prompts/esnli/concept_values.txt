@@ -1,70 +1,60 @@
-Consider the following questions from the e-SNLI dataset, a dataset designed to test natural language inference. Each question contains contextual information ('Context') followed by the question itself ('Question'). In addition, for each question, I have provided a list of 'Concepts', or high-level pieces of information, in the 'Context' that could possibly influence someone's answer to the 'Question'.
+Consider the following questions from a reasoning dataset. Each example contains a 'Context' and a 'Question'. Your task is to extract the explicit, independent conditions from the Context that could influence the answer to the Question.
 
-I am interested in creating counterfactual versions of the questions, where the values of these 'Concepts' in the 'Context' are changed. My goal in doing this is to understand how different pieces of information affect the final inference decision.
+For each condition:
+(A) state its current value verbatim from the Context.
+(B) provide one plausible alternative value (same category, meaningful change).
 
-To help with this, your task is to:
-(A) determine what the current value of each concept is, based only on the given context, and  
-(B) provide one plausible alternative value for each concept.
+GUIDELINES:
+- Ground both (A) and (B) strictly in the Context. No external knowledge.
+- Use exact verbatim text for (A). If you cannot point to the precise span, drop it.
+- Do not include the Question itself as a condition.
+- Do not answer the Question.
+- **INDEPENDENCE & ATOMICITY RULE**: Break the Context into the smallest independent facts that can be changed without logically forcing any other fact to change.  
+  * List subject, verb, object, attributes, locations, etc. as separate conditions.  
+  * Example: “a man is playing a guitar” → “a man”, “playing”, “a guitar” (three conditions).  
+  * Example: “a red hat” → “a hat”, “red” (two conditions).  
+  * Avoid redundant overlaps: do not list both “playing a guitar” and “guitar” – choose the atomic pieces (“playing”, “guitar”).
+  * If two facts always co‑occur in the context but can vary independently (e.g., “wearing a hat” and “the hat is red”), treat them as separate conditions.
+- Alternative (B) must be same‑category replacement (action→action, location→location, entity→entity of same role, attribute→attribute). Never remove or swap category.
+- Output only a numbered list, each item: (A) ... (B) ...
 
-When possible, choose an alternative value that represents a meaningful change (e.g., opposite action, different setting, different entity role), while keeping it realistic and consistent with the structure of the original sentence.
-
-IMPORTANT GUIDELINES:
-- Do not introduce external knowledge beyond the context.
-- Keep both (A) and (B) concise but clearly grounded in the context.
-- Ensure the alternative (B) is plausible and forms a valid counterfactual.
-- Maintain consistency in how entities are referred to (e.g., "the individual", "the children", etc.).
-- Do not answer the question itself.
-
-Here are three examples.
+Here are four examples.
 
 Example 1
 Context: A man is playing a guitar on stage in front of a crowd.
 Question: Can we infer that a person is performing music?
-Answer choices:
-(A) Yes
-(B) No
-(C) Maybe, this is neutral
-Concept List:
-1. The identity of the individual
-2. The action being performed
-3. The setting of the activity
-Concept Values:
-1. (A) the individual is a man (B) the individual is a woman
-2. (A) playing a guitar (B) sitting silently without performing
-3. (A) on a stage in front of a crowd (B) alone in a private room
+1. (A) a man (B) a woman
+2. (A) playing (B) holding without playing
+3. (A) a guitar (B) a violin
+4. (A) on stage (B) in a parking lot
+5. (A) in front of a crowd (B) alone with no audience
 
 Example 2
 Context: Two children are playing in a park while their parents watch from a bench.
 Question: Can we infer that the children are alone?
-Answer choices:
-(A) Yes
-(B) No
-(C) Maybe, this is neutral
-Concept List:
-1. The activity being performed
-2. The location of the scene
-3. The action of supervision
-Concept Values:
-1. (A) playing (B) sitting quietly
-2. (A) a park (B) an empty isolated room
-3. (A) parents watching from a bench (B) no one else is present
+1. (A) two children (B) one child
+2. (A) playing (B) sitting quietly
+3. (A) in a park (B) in a closed indoor room
+4. (A) parents (B) strangers
+5. (A) watching from a bench (B) sleeping on a bench
 
 Example 3
 Context: A woman is sitting at a desk working on a laptop in an office.
 Question: Can we infer that the woman is outdoors?
-Answer choices:
-(A) Yes
-(B) No
-(C) Maybe, this is neutral
-Concept List:
-1. The identity of the individual
-2. The activity being performed
-3. The physical setting
-Concept Values:
-1. (A) the individual is a woman (B) the individual is a man
-2. (A) working on a laptop (B) walking outside
-3. (A) in an office (B) in an open outdoor environment
-
-Please fill out the 'Concept Values' for the fourth example, following the formatting of the previous examples. You should provide only a numbered list. Do not provide the 'Concept Values' header.
+1. (A) a woman (B) a man
+2. (A) sitting (B) standing
+3. (A) at a desk (B) on a couch
+4. (A) working on a laptop (B) reading a book
+5. (A) in an office (B) in an open outdoor environment
 
 Example 4
+Context: A dog is running across a grassy field chasing a ball.
+Question: Can we infer that the dog is stationary?
+1. (A) a dog (B) a cat
+2. (A) running (B) walking slowly
+3. (A) across a grassy field (B) through a narrow indoor corridor
+4. (A) chasing a ball (B) chasing another animal
+
+Now fill out the conditions for the fifth example following the same format. Output only a numbered list.
+
+Example 5

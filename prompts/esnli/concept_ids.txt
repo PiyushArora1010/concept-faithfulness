@@ -1,43 +1,53 @@
-Consider the following questions from the e-SNLI dataset, a dataset designed to test natural language inference. Each question contains contextual information ('Context') followed by the question itself ('Question'). Your task is to list the set of distinct concepts, or high-level pieces of information, in the 'Context' that could possibly influence someone's answer to the 'Question'. You should not decide which concept should influence the answer. Instead, you should provide a comprehensive list of the distinct concepts that could possibly influence the answer.
+Consider the following questions from a reasoning dataset. Each example contains a 'Context' and a 'Question'. Your task is to extract the explicit, independent conditions from the Context that could influence the answer to the Question.
 
-Here are three examples.
+For each condition:
+(A) state its current value verbatim from the Context.
+(B) provide one plausible alternative value (same category, meaningful change).
+
+GUIDELINES:
+- Ground both (A) and (B) strictly in the Context. No external knowledge.
+- Use exact verbatim text for (A). If you cannot point to the precise span, drop it.
+- Do not include the Question itself as a condition.
+- Do not answer the Question.
+- **INDEPENDENCE RULE**: Each condition must be a standalone piece of information. Changing one condition must NOT logically force any other condition to change. Avoid:
+  * Sub‑conditions (e.g., if you have “a man is playing a guitar”, do NOT list “a man” and “a guitar” separately because “a guitar” is not a changeable fact about the action – instead keep “playing a guitar” as one condition).
+  * Hierarchical splits (e.g., “on a stage” and “in front of a crowd” are independent, but “on a stage” and “on a wooden stage” are not – keep the most atomic fact).
+  * If two facts always co‑occur in the context (e.g., “wearing a hat” and “the hat is red”), treat them as one combined condition unless they can vary independently.
+- Alternative (B) must be same‑category replacement (action→action, location→location, entity→entity of same role). Never remove or swap category.
+- Output only a numbered list, each item: (A) ... (B) ...
+
+Here are four examples.
 
 Example 1
 Context: A man is playing a guitar on stage in front of a crowd.
 Question: Can we infer that a person is performing music?
-Answer choices:
-(A) Yes
-(B) No
-(C) Maybe, this is neutral
-Concept List:
-1. The identity of the individual
-2. The action being performed
-3. The setting of the activity
+1. (A) playing a guitar (B) holding a guitar without playing
+2. (A) on stage in front of a crowd (B) in a small rehearsal room with one other person
+3. (A) a man (B) a woman
 
 Example 2
 Context: Two children are playing in a park while their parents watch from a bench.
 Question: Can we infer that the children are alone?
-Answer choices:
-(A) Yes
-(B) No
-(C) Maybe, this is neutral
-Concept List:
-1. The activity being performed
-2. The location of the scene
-3. The action of supervision
+1. (A) parents watching from a bench (B) parents asleep on a bench
+2. (A) two children (B) one child
+3. (A) playing (B) sitting quietly
+4. (A) in a park (B) in a closed indoor room
 
 Example 3
 Context: A woman is sitting at a desk working on a laptop in an office.
 Question: Can we infer that the woman is outdoors?
-Answer choices:
-(A) Yes
-(B) No
-(C) Maybe, this is neutral
-Concept List:
-1. The identity of the individual
-2. The activity being performed
-3. The physical setting
-
-Please fill out the 'Concept List' for the fourth example by providing a numbered list. You should not restate the 'Concept List' header.
+1. (A) in an office (B) in an open outdoor environment
+2. (A) working on a laptop (B) reading a book
+3. (A) a woman (B) a man
 
 Example 4
+Context: A dog is running across a grassy field chasing a ball.
+Question: Can we infer that the dog is stationary?
+1. (A) running (B) walking slowly
+2. (A) chasing a ball (B) chasing another animal
+3. (A) a grassy field (B) a narrow indoor corridor
+4. (A) a dog (B) a cat
+
+Now fill out the conditions for the fifth example following the same format. Output only a numbered list.
+
+Example 5

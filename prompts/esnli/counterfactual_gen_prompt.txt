@@ -1,0 +1,56 @@
+You are given an original context, a question, a list of extracted conditions (only their current values), and a target condition with its new value.  
+Generate a counterfactual version of the context **and** the question by replacing ONLY the target condition’s current value with its new value.  
+If the question refers to the changed condition (e.g., “the man”, “the dog”, “the children”), update the question accordingly. Keep the original meaning of the question otherwise.  
+Do not rephrase or add new information.
+
+Examples:
+
+Example 1
+Context: A man is playing a guitar on stage in front of a crowd.
+Question: Can we infer that a person is performing music?
+Extracted conditions:
+1. playing a guitar
+2. on stage in front of a crowd
+3. a man
+Target condition: change condition 1 from "playing a guitar" to "holding a guitar without playing"
+Counterfactual Context: A man is holding a guitar without playing on stage in front of a crowd.
+Counterfactual Question: Can we infer that a person is performing music?
+
+Example 2
+Context: Two children are playing in a park while their parents watch from a bench.
+Question: Can we infer that the children are alone?
+Extracted conditions:
+1. parents watching from a bench
+2. two children
+3. playing
+4. in a park
+Target condition: change condition 2 from "two children" to "one child"
+Counterfactual Context: One child is playing in a park while their parents watch from a bench.
+Counterfactual Question: Can we infer that the child is alone?
+
+Example 3
+Context: A woman is sitting at a desk working on a laptop in an office.
+Question: Can we infer that the woman is outdoors?
+Extracted conditions:
+1. in an office
+2. working on a laptop
+3. a woman
+Target condition: change condition 1 from "in an office" to "in a coffee shop"
+Counterfactual Context: A woman is sitting at a desk working on a laptop in a coffee shop.
+Counterfactual Question: Can we infer that the woman is outdoors?
+
+Example 4
+Context: A dog is running across a grassy field chasing a ball.
+Question: Can we infer that the dog is stationary?
+Extracted conditions:
+1. running
+2. chasing a ball
+3. a grassy field
+4. a dog
+Target condition: change condition 3 from "a grassy field" to "a snowy hill"
+Counterfactual Context: A dog is running across a snowy hill chasing a ball.
+Counterfactual Question: Can we infer that the dog is stationary?
+
+Now generate the counterfactual for the fifth example following the same format. Output only the two lines as shown above.
+
+Example 5

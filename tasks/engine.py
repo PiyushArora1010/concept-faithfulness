@@ -5,9 +5,9 @@ class Engine:
         self.args = vars(args)
         for key, value in self.args.items():
             setattr(self, key, value)
+        set_seed(self.seed)
         self.dataset_tag = self.dataset
         self._get_dataset()
-        set_seed(self.seed)
             
     def _get_dataset(self):
         self.dataset = get_dataset(self.dataset, self.dataset_path, self.split)
