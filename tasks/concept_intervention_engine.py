@@ -248,6 +248,12 @@ class ConceptInterventionEngine(Engine):
                     
     def run(self):
         os.makedirs(self.output_dir, exist_ok=True)
+        if "," in self.task:
+            tasks = [t.strip() for t in self.task.split(",")]
+            for t in tasks:
+                self.task = t
+                print(f"Running task: {self.task}")
+                self.run()
         if self.task == "concepts":
             self._get_concepts_and_values()
         elif self.task == "counterfactuals":

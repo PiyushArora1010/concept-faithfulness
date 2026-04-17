@@ -7,9 +7,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default='esnli')
 parser.add_argument('--dataset_path', type=str, default='data/e-SNLI')
 parser.add_argument('--split', type=str, default='train')
+parser.add_argument('--sample_size', type=int, default=None, help="Number of examples")
 
 # task
 parser.add_argument('--task', type=str, default='original_responses')
+parser.add_argument('--hint_types', type=str, default=None)
 
 # model settings
 parser.add_argument('--model_tag', type=str, default='Qwen3_2B')

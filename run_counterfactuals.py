@@ -7,6 +7,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default='esnli')
 parser.add_argument('--dataset_path', type=str, default='data/e-SNLI')
 parser.add_argument('--split', type=str, default='train')
+parser.add_argument('--sample_size', type=int, default=None, help="Number of examples")
 
 # task
 parser.add_argument('--task', type=str, default='concepts')

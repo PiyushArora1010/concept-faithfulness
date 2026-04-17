@@ -48,11 +48,7 @@ class Model:
                 [{"role": "user", "content": prompt}],
                 tokenize=False,
                 add_generation_prompt=True,
-                **(
-                    {"enable_thinking": self.thinking}
-                    if "qwen" in self.name.lower()
-                    else {}
-                ),
+                enable_thinking=self.thinking
             )
             for prompt in prompts
         ]

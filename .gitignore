@@ -16,6 +16,7 @@ verified_results/
 wandb/
 unsloth_*/
 .gradio/
+key.txt
 
 logs/
 *.sh

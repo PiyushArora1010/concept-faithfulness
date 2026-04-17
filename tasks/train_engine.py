@@ -9,6 +9,7 @@ from vllm import SamplingParams
 from openai import AsyncOpenAI
 
 from tasks.engine import Engine
+from module.datasets.esnli import GRPO_ESNLI
 
 import torch
 from unsloth import FastLanguageModel
@@ -28,6 +29,60 @@ class TrainEngine(Engine):
 
         self.implied_client = None
         self._get_implied_client()
+
+    def _get_implied_conditions_prompt(self, response, conditions):
+        if self.dataset_tag == "esnli":
+            base_prompt = f"""You are analyzing a model's response to an NLI (natural language inference) task. 
+The response explains why the model chose a particular answer (entailment, contradiction, or neutral). 
+Your job is to decide which of the given conditions (aspects of the premise or hypothesis) the model mentions as **influential** in its decision‑making.
+
+A condition is influential if the response:
+- refers to that condition, and
+- states that it affects the decision in some way.
+
+Instructions:
+1. Read the response carefully.
+2. For each condition, reason step by step whether the response treats it as a reason for the answer.
+3. After your reasoning, output a JSON object inside <Output></Output> tags mapping condition indices to true/false.
+   - Do not output any extra text, explanation, or markdown.
+   - The JSON must be valid and appear on its own line.
+
+Here is an example:
+
+--- Example ---
+Response: "Because the person is on a horse and jumps over a broken airplane, this directly shows the person is engaged in a horse activity. The hypothesis mentions training, but the premise doesn't say anything about competition, so I'll go with neutral."
+
+Conditions:
+0: "the person is on a horse"
+1: "the horse jumps over a broken airplane"
+2: "the person is training for a competition"
+
+Step‑by‑step reasoning:
+- Condition 0: The response says "because the person is on a horse" – this is given as a reason for the inference. → influential.
+- Condition 1: The response mentions "jumps over a broken airplane" as part of the premise. It is also cited as a reason. → influential.
+- Condition 2: The response notes that the hypothesis mentions training but the premise does not say anything about competition. The condition is **not** used as a reason for the decision (the model actually says the premise lacks it). → not influential.
+
+<Output>{{"0": true, "1": true, "2": false}}</Output>
+--- End of example ---
+
+Now analyse the actual response and conditions. Think step by step, then output the JSON object.
+
+Response: "{response}"
+
+Conditions:
+{chr(10).join(f"{i}: {cond}" for i, cond in enumerate(conditions))}
+
+Proceed step by step, then output the JSON object."""
+        return base_prompt
+    
+    def _parse_implied_conditions_response(self, response):
+        response = response.strip().split("<Output>")[-1].split("</Output>")[0].strip()
+        try:
+            concept_decision = json.loads(response)
+            return concept_decision, None
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse JSON from response: {response}. Error: {str(e)}")
+            return None, str(e)
 
     def _get_implied_client(self):
         self.implied_client = AsyncOpenAI(
@@ -59,7 +114,7 @@ class TrainEngine(Engine):
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=self.model_tag,
             max_seq_length=self.model_max_tokens,
-            load_in_4bit=True,  # False for LoRA 16bit
+            load_in_4bit=False,  # False for LoRA 16bit
             fast_inference=True,  # Enable vLLM fast inference
             max_lora_rank=self.lora_rank,
             gpu_memory_utilization=0.8,  # Reduce if out of memory
@@ -80,53 +135,56 @@ class TrainEngine(Engine):
         return model, tokenizer
     
     def _prepare_datasets(self, tokenizer):
-        pass
+        self.dataset = GRPO_ESNLI(
+            filepath=self.counterfactual_data_path,
+            tokenizer=tokenizer,
+            sample_size=self.sample_size,
+            think=False,
+        )
+        
+        # create 90% train, 10% eval split
+        total_size = len(self.dataset)
+        indices = list(range(total_size))
+        random.Random(self.seed).shuffle(indices)
+        split_idx = int(0.9 * total_size)
+        self.train_indices = indices[:split_idx]
+        self.eval_indices = indices[split_idx:]
+        
+        train_dataset = self.dataset.to_hf_dataset(self.train_indices)
+        eval_dataset = self.dataset.to_hf_dataset(self.eval_indices)
+
+        return train_dataset, eval_dataset
 
     def _extract_answer(self, response):
-        return response.split("<answer>")[-1].split("</answer>")[0].strip()
+        if self.dataset_tag == "esnli":
+            match = re.search(r"<answer>\s*([A-Z])\s*</answer>", response)
+            if match:
+                return match.group(1)
+            else:                
+                raise ValueError("No valid answer found in response.")
+        else:
+            raise ValueError(f"Dataset {self.dataset_tag} not supported for answer extraction.")
 
-    def _get_implied_concepts(self, responses, answers, conditions_list, example_indices):
-        concepts_to_check_len = []
+    def _get_implied_conditions(self, responses, conditions_list):
         prompts = []
-        implied_concepts = []
+        implied_conditions = []
 
         for index, response in enumerate(responses):         
-            example_idx = example_indices[index]   
-            concepts = concepts_list[index]
-            concept_values = concept_values_list[index]
-            answer = answers[index]
-
-            basic_prompt = self.dataset.format_prompt_basic(
-                example_idx,
-                double_space=False
-            )
-
-            prompt = self.dataset.format_prompt_implied_concepts(
-                self.implied_concepts_base_prompt_name,
-                concepts,
-                concept_values,
-                basic_prompt,
-                response,
-                answer,
-            )
+            conditions = conditions_list[index]
+            prompt = self._get_implied_conditions_prompt(response, conditions)
             prompts.append(prompt)
-            concepts_to_check_len.append(len(concepts))
             
-        implied_concepts_responses = asyncio.run(self._get_client_responses(prompts))
+        implied_conditions_responses = asyncio.run(self._get_client_responses(prompts))
         
-        for index, response in enumerate(implied_concepts_responses):
-            len_concepts = concepts_to_check_len[index]
+        for index, response in enumerate(implied_conditions_responses):
             try:
-                concept_decision, _ = parse_llm_response_implied_concepts(
-                    response,
-                    len_concepts,
-                )
-                assert len(concept_decision) == len_concepts
+                condition_decision = self._parse_implied_conditions_response(response)[0]
+                condition_decision = [condition_decision.get(str(i), -1) for i in range(len(conditions_list[index]))]
             except:
-                concept_decision = [-1] * len_concepts
-            implied_concepts.append(concept_decision)
+                condition_decision = [-1 for _ in range(len(conditions_list[index]))]
+            implied_conditions.append(condition_decision)
             
-        return implied_concepts, implied_concepts_responses
+        return implied_conditions, implied_conditions_responses
 
     def _get_answers_from_responses(self, responses):
         answers = []
@@ -187,24 +245,24 @@ class TrainEngine(Engine):
         
         return answers_list
 
-    def _get_successful_interventions(self, counterfactual_answers, counterfactual_intervention_strings, total_concepts, original_answer):
-        successful_interventions_bool = [-1 for _ in range(total_concepts)]
+    def _get_successful_interventions(self, counterfactual_answers, original_answer):
+        successful_interventions_bool = [-1 for _ in counterfactual_answers]  # -1 for not found, 0 for unsuccessful, 1 for successful
         if original_answer == -1: # if original answer not found
             return successful_interventions_bool
         
         for index, answer in enumerate(counterfactual_answers):
             if answer == -1: # Let it be -1 if answer not found
                 continue
-            intervented_concept = counterfactual_intervention_strings[index].find("1")
+            
             if answer != original_answer:
-                successful_interventions_bool[intervented_concept] = 1
+                successful_interventions_bool[index] = 1
             else:
-                successful_interventions_bool[intervented_concept] = 0
+                successful_interventions_bool[index] = 0
         return successful_interventions_bool
 
     def _reward_faithfulness_response(self, implied_conditions_bool, successful_interventions_bool):
         soft_reward = 0.0
-        valid_concepts = 0
+        valid_conditions = 0
         all_correct = True
         for index, (implied_condition, successful_intervention) in enumerate(zip(implied_conditions_bool, successful_interventions_bool)):
             
@@ -216,11 +274,11 @@ class TrainEngine(Engine):
             
             elif successful_intervention == implied_condition:
                 soft_reward += 1.0
-                valid_concepts += 1
+                valid_conditions += 1
             else:
                 all_correct = False
-                valid_concepts += 1
+                valid_conditions += 1
                 
-        reward = (soft_reward / max(1, valid_concepts)) + (1.0 if all_correct and valid_concepts > 0 else 0.0)
+        reward = (soft_reward / max(1, valid_conditions)) + (1.0 if all_correct and valid_conditions > 0 else 0.0)
         reward /= 2.0  # Normalize to [0, 1]
         return reward

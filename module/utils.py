@@ -9,6 +9,13 @@ from module.models import Model
 from module.datasets.esnli import ESNLI
 
 import torch
+import torch.distributed as dist
+
+def print0(*args, **kwargs):
+    if not dist.is_available() or not dist.is_initialized():
+        print(*args, **kwargs)
+    elif dist.get_rank() == 0:
+        print(*args, **kwargs)
 
 def set_seed(seed: int) -> RandomState:
     torch.backends.cudnn.deterministic = True
@@ -39,8 +46,8 @@ def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4,
     else:
         return Model(name=model_tag, max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left", thinking=thinking)
     
-def get_dataset(dataset_name, dataset_path, split="train"):
+def get_dataset(dataset_name, dataset_path, split="train", sample_size=None):
     if dataset_name == "esnli":
-        return ESNLI(filepath=dataset_path, split=split)
+        return ESNLI(filepath=dataset_path, split=split, sample_size=sample_size)
     else:
         raise ValueError(f"Dataset {dataset_name} not supported.")

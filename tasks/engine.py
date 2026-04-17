@@ -10,7 +10,13 @@ class Engine:
         self._get_dataset()
             
     def _get_dataset(self):
-        self.dataset = get_dataset(self.dataset, self.dataset_path, self.split)
+        self.dataset = get_dataset(self.dataset, self.dataset_path, self.split, self.sample_size)
+        
+        # remove this later
+        import json
+        indices_file = "indices_train.json"
+        with open(indices_file, 'w') as f:
+            json.dump(self.dataset.indices, f)
             
     def _get_model(self):
         self.model = get_language_model(

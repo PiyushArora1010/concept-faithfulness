@@ -1,11 +1,21 @@
+import json
+import random
 from datasets import Dataset, concatenate_datasets
 
 class ESNLI:
-    def __init__(self, filepath: str, split="train"):
+    def __init__(self, filepath: str, split="train", sample_size=None):
         self.filepath = filepath
         self.split = split
+        self.sample_size = sample_size
         self.labels = ['A', 'B', 'C']
         self.data = self._load()
+        self.indices = list(range(len(self.data)))
+        
+        if self.sample_size is not None and self.sample_size < len(self.data):
+            rng = random.Random(0)                     # fixed seed for reproducibility
+            indices = rng.sample(range(len(self.data)), self.sample_size)   # choose random indices
+            self.indices = indices
+            self.data = [self.data[i] for i in indices]                     # extract subset
 
     def _label_map(self, label):
         return {
@@ -64,8 +74,107 @@ class ESNLI:
         return f"{ex['question']}\nAnswer Choices:\n{ex['answer_choices']}"
 
     def __len__(self):
-        # return len(self.data)
-        return 100
+        return len(self.data)
 
     def __getitem__(self, idx):
         return self.data[idx]
+
+class GRPO_ESNLI:
+    def __init__(self, filepath, tokenizer, sample_size=None, think=False):
+        self.tokenizer = tokenizer
+        self.question_wrapper = """{question}\nThink step by step, then give your final answer inside <answer></answer> tags. Your answer should be a single letter (A, B, or C)."""
+
+        self.think = think
+        self.add_generation_prompt = True
+        self.answer_choices = "(A) Yes\n(B) No\n(C) Maybe, this is neutral"
+        self.data = self._load_jsonl(filepath)
+        self.indices = list(range(len(self.data)))
+        
+        if sample_size is not None and sample_size < len(self.data):
+            rng = random.Random(0)
+            indices = rng.sample(range(len(self.data)), sample_size)
+            self.indices = indices
+            self.data = [self.data[i] for i in indices]
+        
+        self._prepare_prompts()
+
+    def _load_jsonl(self, filepath):
+        data = []
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        data.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        return data
+
+    def _apply_chat_template(self, prompt):
+        return self.tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}],
+            tokenize=False,
+            add_generation_prompt=self.add_generation_prompt,
+            enable_thinking=self.think
+        )
+
+    def _format_question_with_choices(self, item):
+        context_question = f"Context: {item['original_context']}\nQuestion: {item['original_question']}"
+        question = f"{context_question}\nAnswer Choices:\n{self.answer_choices}"
+        return self.question_wrapper.format(question=question)
+
+    def _prepare_prompts(self):
+        for item in self.data:
+            # Original prompt with answer choices
+            original_full = self._format_question_with_choices(item)
+            item["prompt"] = self._apply_chat_template(original_full)
+
+            # Counterfactuals
+            cf_prompts = []
+            cf_metadata = []
+            original_conditions = []
+            if len(item["counterfactuals"]) == 0:
+                continue
+            for cf in item.get("counterfactuals", []):
+                # Reconstruct full question from counterfactual context + question
+                context = cf.get("counterfactual_context", "")
+                question = cf.get("counterfactual_question", "")
+                if not context.startswith("Context: "):
+                    context = f"Context: {context}"
+                if not question.startswith("Question: "):
+                    question = f"Question: {question}"
+                cf_question_text = f"{context}\n{question}"
+                cf_full = f"{cf_question_text}\nAnswer Choices:\n{self.answer_choices}"
+                cf_full = self.question_wrapper.format(question=cf_full)
+                cf_prompts.append(self._apply_chat_template(cf_full))
+                cf_metadata.append({
+                    "condition_index": cf.get("condition_index"),
+                    "original_value": cf.get("original_value"),
+                    "alternative_value": cf.get("alternative_value"),
+                    "counterfactual_context": cf.get("counterfactual_context"),
+                    "counterfactual_question": cf.get("counterfactual_question"),
+                })
+                original_conditions.append(cf.get("original_value"))
+                
+            item["counterfactual_prompts"] = cf_prompts
+            item["counterfactual_metadata"] = cf_metadata
+            item["original_conditions"] = original_conditions
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        return {
+            "example_id": item["example_idx"],
+            "prompt": item["prompt"],
+            "counterfactual_prompts": item["counterfactual_prompts"],
+            "counterfactual_metadata": item["counterfactual_metadata"],
+            "original_conditions": item["original_conditions"],
+        }
+
+    def to_hf_dataset(self, indices=None):
+        if indices is None:
+            indices = list(range(len(self)))
+        return Dataset.from_list([self[i] for i in indices])
+    
