@@ -2,7 +2,9 @@ Consider the following questions from a reasoning dataset. Each example contains
 
 For each condition:
 (A) state its current value verbatim from the Context.
-(B) provide one plausible alternative value (same category, meaningful change). Prefer alternatives that would likely change the answer to the Question, but if no such alternative exists within the Context, any same‑category replacement is acceptable.
+(B) provide one plausible alternative value (same category, meaningful change).
+
+Very Important: **Only include conditions where changing the value to the alternative would likely change the answer to the Question. Omit conditions that are peripheral or whose change would likely not affect the answer. If the condition can even slightly lead to an answer change, mention it.**
 
 GUIDELINES:
 - Ground both (A) and (B) strictly in the Context. No external knowledge.
@@ -22,37 +24,26 @@ Here are four examples.
 Example 1
 Context: A man is playing a guitar on stage in front of a crowd.
 Question: Can we infer that a person is performing music?
-1. (A) a man (B) a woman
-2. (A) playing (B) holding without playing
-3. (A) a guitar (B) a violin
-4. (A) on stage (B) in a parking lot
-5. (A) in front of a crowd (B) alone with no audience
+1. (A) playing (B) holding without playing
+2. (A) a guitar (B) a painting
+3. (A) in front of a crowd (B) alone with no audience
 
 Example 2
 Context: Two children are playing in a park while their parents watch from a bench.
 Question: Can we infer that the children are alone?
-1. (A) two children (B) one child
-2. (A) playing (B) sitting quietly
-3. (A) in a park (B) in a closed indoor room
-4. (A) parents (B) strangers
-5. (A) watching from a bench (B) sleeping on a bench
+1. (A) parents (B) strangers
+2. (A) watching from a bench (B) sleeping on a bench
 
 Example 3
 Context: A woman is sitting at a desk working on a laptop in an office.
 Question: Can we infer that the woman is outdoors?
-1. (A) a woman (B) a man
-2. (A) sitting (B) standing
-3. (A) at a desk (B) on a couch
-4. (A) working on a laptop (B) reading a book
-5. (A) in an office (B) in an open outdoor environment
+1. (A) in an office (B) in an open outdoor environment
 
 Example 4
 Context: A dog is running across a grassy field chasing a ball.
 Question: Can we infer that the dog is stationary?
-1. (A) a dog (B) a cat
-2. (A) running (B) walking slowly
-3. (A) across a grassy field (B) through a narrow indoor corridor
-4. (A) chasing a ball (B) chasing another animal
+1. (A) running (B) lying still
+2. (A) chasing a ball (B) sitting beside a ball
 
 Now fill out the conditions for the fifth example following the same format. Output only a numbered list.
 

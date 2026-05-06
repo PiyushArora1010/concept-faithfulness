@@ -1,36 +1,36 @@
 import json
-import random
+import numpy as np
 from datasets import Dataset, concatenate_datasets
+import random
 
 class ESNLI:
     def __init__(self, filepath: str, split="train", sample_size=None):
         self.filepath = filepath
         self.split = split
         self.sample_size = sample_size
-        self.labels = ['A', 'B', 'C']
+        
+        self.labels = ['A', 'B']
+        
         self.data = self._load()
         self.indices = list(range(len(self.data)))
         
         if self.sample_size is not None and self.sample_size < len(self.data):
-            rng = random.Random(0)                     # fixed seed for reproducibility
-            indices = rng.sample(range(len(self.data)), self.sample_size)   # choose random indices
+            indices = np.random.permutation(len(self.data))[:self.sample_size].tolist()
             self.indices = indices
-            self.data = [self.data[i] for i in indices]                     # extract subset
+            self.data = [self.data[i] for i in indices]
 
     def _label_map(self, label):
         return {
             'entailment': 'A',
             'contradiction': 'B',
-            'neutral': 'C'
         }.get(label, None)
 
     def _format_question(self, s1, s2):
-        # Include answer choices in the prompt
         return f'Context: {s1}\nQuestion: Can we infer that {s2}?'
     
     def _process(self, dataset: Dataset):
         processed = []
-        for ex in dataset:
+        for idx, ex in enumerate(dataset):
             correct = self._label_map(ex['gold_label'])
             if correct is None:
                 continue
@@ -43,14 +43,13 @@ class ESNLI:
             question_text = self._format_question(s1, s2)
             answer_map = {
                 'A': 'Yes',
-                'B': 'No',
-                'C': 'Maybe, this is neutral'
+                'B': 'No'
             }
 
-            # Also store answer choices separately for convenience
-            answer_choices = "(A) Yes\n(B) No\n(C) Maybe, this is neutral"
+            answer_choices = "(A) Yes\n(B) No"
             
             processed.append({
+                "example_idx": idx,
                 "question": question_text,
                 "answer_choices": answer_choices,
                 "label": correct
@@ -80,13 +79,16 @@ class ESNLI:
         return self.data[idx]
 
 class GRPO_ESNLI:
-    def __init__(self, filepath, tokenizer, sample_size=None, think=False):
+    def __init__(self, filepath, tokenizer, sample_size=None, question_wrapper=None, think=False, engine=None):
         self.tokenizer = tokenizer
-        self.question_wrapper = """{question}\nThink step by step, then give your final answer inside <answer></answer> tags. Your answer should be a single letter (A, B, or C)."""
+        if question_wrapper is not None:
+            self.question_wrapper = question_wrapper
+        else:
+            self.question_wrapper = """{question}\nThink step by step, then give your final answer inside <answer></answer> tags. Your answer should be a single letter (A, B, or C)."""
 
         self.think = think
         self.add_generation_prompt = True
-        self.answer_choices = "(A) Yes\n(B) No\n(C) Maybe, this is neutral"
+        self.answer_choices = "(A) Yes\n(B) No"
         self.data = self._load_jsonl(filepath)
         self.indices = list(range(len(self.data)))
         
@@ -96,7 +98,7 @@ class GRPO_ESNLI:
             self.indices = indices
             self.data = [self.data[i] for i in indices]
         
-        self._prepare_prompts()
+        self._prepare_prompts(engine=engine)
 
     def _load_jsonl(self, filepath):
         data = []
@@ -118,47 +120,72 @@ class GRPO_ESNLI:
             enable_thinking=self.think
         )
 
-    def _format_question_with_choices(self, item):
-        context_question = f"Context: {item['original_context']}\nQuestion: {item['original_question']}"
-        question = f"{context_question}\nAnswer Choices:\n{self.answer_choices}"
-        return self.question_wrapper.format(question=question)
+    def _format_question_with_choices(self, context, question, apply_wrapper=True, answer_choices=True):
+        context_question = f"Context: {context}\nQuestion: {question}"
+        if answer_choices:
+            question = f"{context_question}\nAnswer Choices:\n{self.answer_choices}"
+        else:
+            question = context_question
+        if apply_wrapper:
+            question = self.question_wrapper.format(question=question)
+        return question
 
-    def _prepare_prompts(self):
+    def _prepare_prompts(self, engine=None):
+        len_data = len(self.data)
+        data_new = []
         for item in self.data:
-            # Original prompt with answer choices
-            original_full = self._format_question_with_choices(item)
+            
+            original_full = self._format_question_with_choices(item["original_context"], item["original_question"])
+            original_question_without_wrapper = self._format_question_with_choices(item["original_context"], item["original_question"], apply_wrapper=False)
             item["prompt"] = self._apply_chat_template(original_full)
+            item["question"] = original_question_without_wrapper
 
             # Counterfactuals
             cf_prompts = []
-            cf_metadata = []
             original_conditions = []
             if len(item["counterfactuals"]) == 0:
                 continue
             for cf in item.get("counterfactuals", []):
-                # Reconstruct full question from counterfactual context + question
+                
                 context = cf.get("counterfactual_context", "")
-                question = cf.get("counterfactual_question", "")
-                if not context.startswith("Context: "):
-                    context = f"Context: {context}"
-                if not question.startswith("Question: "):
-                    question = f"Question: {question}"
-                cf_question_text = f"{context}\n{question}"
-                cf_full = f"{cf_question_text}\nAnswer Choices:\n{self.answer_choices}"
-                cf_full = self.question_wrapper.format(question=cf_full)
+                question = item.get("original_question", "") # use original question
+
+                cf_full = self._format_question_with_choices(context, question, apply_wrapper=True)
                 cf_prompts.append(self._apply_chat_template(cf_full))
-                cf_metadata.append({
-                    "condition_index": cf.get("condition_index"),
-                    "original_value": cf.get("original_value"),
-                    "alternative_value": cf.get("alternative_value"),
-                    "counterfactual_context": cf.get("counterfactual_context"),
-                    "counterfactual_question": cf.get("counterfactual_question"),
-                })
                 original_conditions.append(cf.get("original_value"))
                 
             item["counterfactual_prompts"] = cf_prompts
-            item["counterfactual_metadata"] = cf_metadata
             item["original_conditions"] = original_conditions
+            
+            data_new.append(item)
+            
+            if engine is not None and engine.hint_cf:
+                hint_item = {}
+                hint_types_available = engine.train_hint_types
+                random_hint_type = random.choice(hint_types_available)
+                hinted_answer = random.choice(['A', 'B'])
+                variants = engine._generate_prompt_variants(
+                    random_hint_type,
+                    self._format_question_with_choices(item["original_context"], item["original_question"], apply_wrapper=False),
+                    hinted_answer
+                )
+                choosen_variant_idx = random.randint(0, len(variants)-1)
+                choosen_variant = variants[choosen_variant_idx]
+                hint_item["gt"] = item["gt"]
+                hint_item["prompt"] = self._apply_chat_template(self.question_wrapper.format(question=choosen_variant))
+                hint_item["counterfactual_prompts"] = [
+                    item["prompt"]
+                ]
+                hint_item["example_idx"] = len_data + item["example_idx"]
+                hint_item["original_conditions"] = [engine._generate_prompt_variants(
+                    random_hint_type,
+                    "",
+                    hinted_answer
+                )[choosen_variant_idx].strip()]
+                hint_item["question"] = choosen_variant
+                data_new.append(hint_item)
+            
+        self.data = data_new
 
     def __len__(self):
         return len(self.data)
@@ -167,11 +194,144 @@ class GRPO_ESNLI:
         item = self.data[idx]
         return {
             "example_id": item["example_idx"],
+            "gt": item["gt"],
             "prompt": item["prompt"],
+            "question": item["question"],
             "counterfactual_prompts": item["counterfactual_prompts"],
-            "counterfactual_metadata": item["counterfactual_metadata"],
             "original_conditions": item["original_conditions"],
         }
+
+    def to_hf_dataset(self, indices=None):
+        if indices is None:
+            indices = list(range(len(self)))
+        return Dataset.from_list([self[i] for i in indices])
+
+
+class GRPO_ESNLI_CF:
+    def __init__(self, filepath, tokenizer, sample_size=None, question_wrapper=None, think=False, engine=None):
+        self.tokenizer = tokenizer
+        if question_wrapper is not None:
+            self.question_wrapper = question_wrapper
+        else:
+            self.question_wrapper = """{question}\nThink step by step, then give your final answer inside <answer></answer> tags. Your answer should be a single letter (A, B, or C)."""
+
+        self.think = think
+        self.add_generation_prompt = True
+        self.answer_choices = "(A) Yes\n(B) No"
+        self.label_map = {
+            "A": "Yes",
+            "B": "No"
+        }
+        self.labels = ['A', 'B']
+        self.data = self._load_jsonl(filepath)
+        self.indices = list(range(len(self.data)))
+        
+        if sample_size is not None and sample_size < len(self.data):
+            rng = random.Random(0)
+            indices = rng.sample(range(len(self.data)), sample_size)
+            self.indices = indices
+            self.data = [self.data[i] for i in indices]
+        
+        self._prepare_prompts(engine=engine)
+
+    def _load_jsonl(self, filepath):
+        data = []
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        data.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        return data
+
+    def _apply_chat_template(self, prompt):
+        return self.tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}],
+            tokenize=False,
+            add_generation_prompt=self.add_generation_prompt,
+            enable_thinking=self.think
+        )
+
+    def _format_question_with_choices(self, context_item, question_item, apply_wrapper=True):
+        context_question = f"Context: {context_item}\nQuestion: {question_item}"
+        question = f"{context_question}\nAnswer Choices:\n{self.answer_choices}"
+        if apply_wrapper:
+            return self.question_wrapper.format(question=question)
+        return question
+
+    def _prepare_prompts(self, engine=None):
+        data = []
+        for item in self.data:
+
+            original_question_prompt = self._apply_chat_template(
+                self._format_question_with_choices(
+                    item["original_context"], 
+                    item["original_question"]
+                )
+            )
+
+            if len(item["counterfactuals"]) == 0:
+                continue
+            
+            for cf in item.get("counterfactuals", []):
+                context = cf.get("counterfactual_context", "")
+                question = item["original_question"] # replace counterfactual_question with original question
+                
+                cf_question_text = self._format_question_with_choices(context, question)
+                cf_question_prompt = self._apply_chat_template(cf_question_text)
+                
+                data.append({
+                    "example_id": item["example_idx"],
+                    "original_prompt": original_question_prompt,
+                    "prompt": cf_question_prompt,
+                    "condition": cf.get("alternative_value"),
+                    "question": self._format_question_with_choices(context, question, apply_wrapper=False),
+                })
+            
+            if engine is not None:
+                if not engine.hint_cf:
+                    continue
+                
+                hint_types_available = engine.train_hint_types
+                random_hint_type = random.choice(hint_types_available)
+                
+                hinted_answer = random.choice(self.labels)
+                
+                variants = engine._generate_prompt_variants(
+                    random_hint_type,
+                    self._format_question_with_choices(item["original_context"], item["original_question"], apply_wrapper=False),
+                    hinted_answer
+                )
+                choosen_variant_idx = random.randint(0, len(variants)-1)
+                choosen_variant = variants[choosen_variant_idx]
+                choosen_variant_prompt = self._apply_chat_template(self.question_wrapper.format(question=choosen_variant))
+                
+                added_hint = engine._generate_prompt_variants(
+                    random_hint_type,
+                    "",
+                    hinted_answer
+                )[choosen_variant_idx].strip()
+                
+                data.append(
+                    {
+                        "example_id": item["example_idx"],
+                        "original_prompt": original_question_prompt,
+                        "prompt": choosen_variant_prompt,
+                        "condition": added_hint,
+                        "question": choosen_variant,
+                    }
+                )
+      
+        self.data = data
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        return item
 
     def to_hf_dataset(self, indices=None):
         if indices is None:

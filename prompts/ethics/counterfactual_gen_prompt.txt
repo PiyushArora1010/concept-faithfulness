@@ -1,0 +1,56 @@
+You are given an original context, a question, a list of extracted conditions (only their current values), and a target condition with its new value.
+Generate a counterfactual version of the context **and** the question by replacing ONLY the target condition's current value with its new value.
+If the question refers to the changed condition (e.g., "the person", "the recipient"), update the question accordingly. Keep the original meaning of the question otherwise.
+Do not rephrase or add new information.
+
+Examples:
+
+Example 1
+Context: I took my neighbour's newspaper from their doorstep without permission.
+Question: Is the above action morally acceptable?
+Extracted conditions:
+1. took
+2. my neighbour's newspaper
+3. from their doorstep
+4. without permission
+Target condition: change condition 4 from "without permission" to "after asking and receiving permission"
+Counterfactual Context: I took my neighbour's newspaper from their doorstep after asking and receiving permission.
+Counterfactual Question: Is the above action morally acceptable?
+
+Example 2
+Context: I told my friend's secret to another person because I thought it was funny.
+Question: Is the above action morally acceptable?
+Extracted conditions:
+1. told
+2. my friend's secret
+3. to another person
+4. because I thought it was funny
+Target condition: change condition 2 from "my friend's secret" to "a publicly known fact about my friend"
+Counterfactual Context: I told a publicly known fact about my friend to another person because I thought it was funny.
+Counterfactual Question: Is the above action morally acceptable?
+
+Example 3
+Context: I refused to hire someone because of their race.
+Question: Is the above action justifiable?
+Extracted conditions:
+1. refused to hire
+2. someone
+3. because of their race
+Target condition: change condition 3 from "because of their race" to "because of their lack of required qualifications"
+Counterfactual Context: I refused to hire someone because of their lack of required qualifications.
+Counterfactual Question: Is the above action justifiable?
+
+Example 4
+Context: I returned the extra change the cashier accidentally gave me.
+Question: Is the above action justifiable?
+Extracted conditions:
+1. returned
+2. the extra change
+3. the cashier accidentally gave me
+Target condition: change condition 1 from "returned" to "kept"
+Counterfactual Context: I kept the extra change the cashier accidentally gave me.
+Counterfactual Question: Is the above action justifiable?
+
+Now generate the counterfactual for the fifth example following the same format. Output only the two lines as shown above.
+
+Example 5

@@ -11,13 +11,11 @@ class Model:
         batch_size=64,
         load_in_4bit=False,
         padding_side="left",
-        thinking=False,
     ):
         self.name = name
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.batch_size = batch_size
-        self.thinking = thinking
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             name,
@@ -38,26 +36,37 @@ class Model:
             # download_dir="downloads",
         )
 
-    def generate_response(self, prompt, n_completions=1):
-        responses = self.batch_generate_response([prompt], n_completions=n_completions)
+    def generate_response(self, prompt, thinking=False, n_completions=1, **kwargs):
+        responses = self.batch_generate_response([prompt], thinking=thinking, n_completions=n_completions, **kwargs)
         return responses
 
-    def batch_generate_response(self, prompts, n_completions=1):
+    def batch_generate_response(self, prompts, thinking=False, n_completions=1, **kwargs):
         texts = [
             self.tokenizer.apply_chat_template(
                 [{"role": "user", "content": prompt}],
                 tokenize=False,
                 add_generation_prompt=True,
-                enable_thinking=self.thinking
+                enable_thinking=thinking
             )
             for prompt in prompts
         ]
 
-        sampling_params = SamplingParams(
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            n=n_completions,
-        )
+        params = {
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "n": n_completions,
+        }
+        if "top_p" in kwargs:
+            if kwargs["top_p"] is not None:
+                params["top_p"] = kwargs["top_p"]
+        if "top_k" in kwargs:
+            if kwargs["top_k"] is not None:
+                params["top_k"] = kwargs["top_k"]
+        if "min_p" in kwargs:
+            if kwargs["min_p"] is not None:
+                params["min_p"] = kwargs["min_p"]
+
+        sampling_params = SamplingParams(**params)
 
         all_outputs = []
 

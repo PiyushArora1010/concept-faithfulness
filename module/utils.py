@@ -7,6 +7,7 @@ from numpy.random import seed as seednp
 
 from module.models import Model
 from module.datasets.esnli import ESNLI
+from module.datasets.ethics_dataset import ETHICS
 
 import torch
 import torch.distributed as dist
@@ -28,7 +29,7 @@ def set_seed(seed: int) -> RandomState:
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     return random_state
 
-def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4, load_in_4bit=False, thinking=False):
+def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4, load_in_4bit=False):
     if model_tag == "Llama3.2_1B":
         return Model(name="meta-llama/Llama-3.2-1B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left")
     elif model_tag == "Llama3.1_8B":
@@ -36,18 +37,20 @@ def get_language_model(model_tag, max_tokens=256, temperature=0.7, batch_size=4,
     elif model_tag == "Llama3.3_70B":
         return Model(name="meta-llama/Llama-3.3-70B-Instruct", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left")
     elif model_tag == "Qwen3_4B":
-        return Model(name="Qwen/Qwen3-4B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left", thinking=thinking)
+        return Model(name="Qwen/Qwen3-4B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left")
     elif model_tag == "Qwen3_8B":
-        return Model(name="Qwen/Qwen3-8B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left", thinking=thinking)
+        return Model(name="Qwen/Qwen3-8B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left")
     elif model_tag == "Qwen3_14B":
-        return Model(name="Qwen/Qwen3-14B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left", thinking=thinking)
+        return Model(name="Qwen/Qwen3-14B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left")
     elif model_tag == "Qwen3_32B":
-        return Model(name="Qwen/Qwen3-32B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left", thinking=thinking)
+        return Model(name="Qwen/Qwen3-32B", max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left")
     else:
-        return Model(name=model_tag, max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left", thinking=thinking)
+        return Model(name=model_tag, max_tokens=max_tokens, temperature=temperature, batch_size=batch_size, load_in_4bit=load_in_4bit, padding_side="left")
     
 def get_dataset(dataset_name, dataset_path, split="train", sample_size=None):
     if dataset_name == "esnli":
         return ESNLI(filepath=dataset_path, split=split, sample_size=sample_size)
+    elif dataset_name == "ethics":
+        return ETHICS(split=split, sample_size=sample_size)
     else:
         raise ValueError(f"Dataset {dataset_name} not supported.")

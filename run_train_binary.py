@@ -1,65 +1,82 @@
 import os
+import re
 import json
 import numpy as np
 import time
 import wandb
 import argparse
 import unsloth
-from tasks.train_engine import TrainEngine
+from tasks.train_engine import TrainBinaryEngine
 
 from module.utils import print0, set_seed
 from trl import GRPOConfig, GRPOTrainer
 from vllm import SamplingParams
 
+def reward_function_clipped(prompts, completions, **kwargs):
+    reasoning_content = []
+    for completion in completions:
+        match = re.search(r'<reasoning>(.*?)</reasoning>', completion, re.DOTALL)
+        if match:
+            reasoning_content.append(match.group(1).strip())
+        else:
+            reasoning_content.append("")
+    
+    word_counts = [len(content.split()) for content in reasoning_content]
+    
+    # Clip: f(x) = min(1, x/128)
+    clipped_rewards = [min(1.0, count / 128.0) for count in word_counts]
+    
+    return clipped_rewards
+
 def reward_function_faithfulness(prompts, completions, **kwargs):
     global engine, model, tokenizer
-
+    # breakpoint()
     example_indices = kwargs["example_id"]
-    counterfactual_prompts = kwargs["counterfactual_prompts"]
-    original_questions = kwargs["question"]
-    conditions_list = kwargs["original_conditions"]
+    original_prompts = kwargs["original_prompt"]
+    conditions = kwargs["condition"]
+    questions = kwargs["question"]
     
     # Get only unique counterfactual prompts
-    counterfactual_prompts = [counterfactual_prompts[i] for i in range(0, len(completions), engine.completions_per_prompt)]
-    counterfactual_answers = engine._get_counterfactual_answers(
-        model, counterfactual_prompts
+    original_answers = engine._get_original_answers(
+        model, original_prompts
     ) 
-    counterfactual_answers = [ans for ans in counterfactual_answers for _ in range(engine.completions_per_prompt)] # repeat answers per completion
-
+    # breakpoint()
     # Get example answers and masks telling whether answer was found (-1 if not found)
     example_answers = engine._get_answers_from_responses(completions)
 
     # Get Successful Interventions
-    successful_interventions = [
-        engine._get_successful_interventions(
-            counterfactual_answers[i],
-            example_answers[i]
-        )
-        for i in range(len(completions))
-    ]
+    successful_interventions = engine._get_successful_interventions(
+        example_answers,
+        original_answers
+    )
 
     # Get Implied Conditions and mask for each response
     implied_conditions_bool, implied_conditions_responses = engine._get_implied_conditions(
         completions,
-        conditions_list,
-        original_questions,
+        conditions,
+        questions
     )
 
-    # Faithfulness reward computation
+    # Faitfhulness reward computation
     rewards = [engine._reward_faithfulness_response(
         implied_conditions_bool[i],
         successful_interventions[i],
     ) for i in range(len(completions))]
     
-    # for ix, answer in enumerate(example_answers):
-    #     if answer != -1:
-    #         rewards[ix] += 0.1  # Reward for having an answer
+    length_bonuses = reward_function_clipped(
+        prompts, completions
+    )
+    
+    for ix, length_bonus in enumerate(length_bonuses):
+        rewards[ix] += 0.5 * length_bonus  # Add length bonus to faithfulness reward
     
     logging_dict = dict(
         {
             "completions": completions[0],
             "example_answers": example_answers[0],
-            "counterfactual_answers": counterfactual_answers[0],
+            "original_answers": original_answers[0],
+            "conditions": conditions[0],
+            "implied_response": implied_conditions_responses[0],
             "implied_conditions": implied_conditions_bool[0],
             "successful_interventions": successful_interventions[0],
             "rewards": rewards[0],
@@ -71,24 +88,7 @@ def reward_function_faithfulness(prompts, completions, **kwargs):
 
     return rewards
 
-def reward_correct_answer(prompts, completions, **kwargs):
-    global engine, model, tokenizer
 
-    gts = kwargs["gt"]
-
-    example_answers = engine._get_answers_from_responses(completions)
-
-    print0(f"Example answers: {example_answers}")
-    print0(f"Ground truth answers: {gts}")
-
-    rewards = []    
-    for i in range(len(completions)):
-        if example_answers[i] == gts[i]:
-            rewards.append(1.0)
-        else:
-            rewards.append(0.0)
-
-    return rewards
 
 parser = argparse.ArgumentParser()
 
@@ -126,9 +126,9 @@ parser.add_argument('--lora_layers', type=str, nargs='+', default=None)
 # Data settings
 parser.add_argument('--dataset', type=str, default='esnli')
 parser.add_argument('--dataset_path', type=str, default='data/e-SNLI')
-parser.add_argument('--hint_cf', action='store_true')
 parser.add_argument('--counterfactual_data_path', type=str, default="results/concept_outputs/bbq/Llama3.3_70B")
 parser.add_argument('--split', type=str, default='train')
+parser.add_argument('--hint_cf', action='store_true')
 parser.add_argument('--sample_size', type=int, default=None, help="Number of examples")
 parser.add_argument('--seed', type=int, default=0)
 
@@ -138,7 +138,7 @@ set_seed(args.seed)
 if __name__ == '__main__':
 
     print0("Setting up training engine...")
-    engine = TrainEngine(args)
+    engine = TrainBinaryEngine(args)
     
     print0("Preparing model and datasets...")
     model, tokenizer = engine._get_model_and_tokenizer()
@@ -151,6 +151,7 @@ if __name__ == '__main__':
 
     train_dataset, val_dataset = engine._prepare_datasets(tokenizer)
     # breakpoint()
+    
     print0(f"Train dataset size: {len(train_dataset)}")
     print0(f"Validation dataset size: {len(val_dataset)}")
 
@@ -209,7 +210,7 @@ if __name__ == '__main__':
         processing_class=tokenizer,
         reward_funcs=[
             reward_function_faithfulness,
-            reward_correct_answer,
+            # reward_function_formatting,
         ],
         args=training_args,
         train_dataset=train_dataset,
@@ -217,5 +218,5 @@ if __name__ == '__main__':
     )
     
     print0("Starting training...")
-    trainer.train()
+    trainer.train() # resume_from_checkpoint = True
     # model.save_pretrained(os.path.join(engine.output_dir, "model"), tokenizer)

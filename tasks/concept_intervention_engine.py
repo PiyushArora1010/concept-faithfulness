@@ -12,17 +12,16 @@ class ConceptInterventionEngine(Engine):
         )
         self._get_model()
         
-        self.concept_results_file = "concept_results.json"
-        with open(os.path.join("prompts", self.dataset_tag, f"{self.concept_id_base_prompt_name}.txt"), 'r') as f:
-            self.concept_id_base_prompt = f.read()
-            
+        self.concept_results_file = "concept_results.jsonl"
+
         with open(os.path.join("prompts", self.dataset_tag, f"{self.concept_values_base_prompt_name}.txt"), 'r') as f:
             self.concept_values_base_prompt = f.read()
         
-        self.counterfactual_results_file = "counterfactual_results.json"
+        self.counterfactual_results_file = "counterfactual_results.jsonl"
         with open(os.path.join("prompts", self.dataset_tag, f"{self.counterfactual_gen_base_prompt_name}.txt"), 'r') as f:
             self.counterfactual_gen_base_prompt = f.read()
 
+    # Concept value and alternative value
     def parse_concept_values(self, response):
         pattern = r'^\s*\d+\.\s*\(A\)\s*(.*?)\s*\(B\)\s*(.*)$'
 
@@ -61,7 +60,6 @@ class ConceptInterventionEngine(Engine):
                 original_values, alternaltive_values = self.parse_concept_values(response)
                 
                 assert len(original_values) == len(alternaltive_values), "Number of original values does not match number of alternative value sets."
-                # assert len(original_values) == len(batched_concept_ids[example_idx]), "Number of concept settings does not match number of concepts."
                 batched_concept_values[example_idx] = {
                     "original_values": original_values,
                     "alternative_values": alternaltive_values
@@ -85,8 +83,8 @@ class ConceptInterventionEngine(Engine):
                 with open(os.path.join(self.output_dir, self.concept_results_file), 'a') as f:
                     for idx in concept_values.keys():
                         result = {
+                            "gt": self.dataset[idx].get("label", None),
                             "example_idx": idx,
-                            # "concept_ids": concept_ids[idx],
                             "concept_values": concept_values[idx]
                         }
                         f.write(json.dumps(result) + "\n")
@@ -104,11 +102,12 @@ class ConceptInterventionEngine(Engine):
                 for idx in concept_values.keys():
                     result = {
                         "example_idx": idx,
-                        # "concept_ids": concept_ids[idx],
+                        "gt": self.dataset[idx].get("label", None),
                         "concept_values": concept_values[idx]
                     }
                     f.write(json.dumps(result) + "\n")
     
+    # Counterfactual generation
     def parse_counterfactual(self, response):
         pattern_context = r'^Counterfactual Context:\s*(.+)$'
         pattern_question = r'^Counterfactual Question:\s*(.+)$'
@@ -234,6 +233,10 @@ class ConceptInterventionEngine(Engine):
                 batch_results = self._get_counterfactuals_batch(example_indices_batch, concept_values_dict)
                 with open(os.path.join(self.output_dir, self.counterfactual_results_file), 'a') as f:
                     for example_obj in batch_results:
+                        if "example_idx" in example_obj:
+                            example_obj["gt"] = self.dataset[example_obj["example_idx"]].get("label", None)
+                        else:
+                            example_obj["gt"] = None
                         f.write(json.dumps(example_obj) + "\n")
                 example_indices_batch = []
                 batch_counter = 0
@@ -244,8 +247,12 @@ class ConceptInterventionEngine(Engine):
             batch_results = self._get_counterfactuals_batch(example_indices_batch, concept_values_dict)
             with open(os.path.join(self.output_dir, self.counterfactual_results_file), 'a') as f:
                 for example_obj in batch_results:
+                    if "example_idx" in example_obj:
+                        example_obj["gt"] = self.dataset[example_obj["example_idx"]].get("label", None)
+                    else:
+                        example_obj["gt"] = None
                     f.write(json.dumps(example_obj) + "\n")
-                    
+              
     def run(self):
         os.makedirs(self.output_dir, exist_ok=True)
         if "," in self.task:
