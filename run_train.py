@@ -124,7 +124,7 @@ parser.add_argument('--lora_rank', type=int, default=16)
 parser.add_argument('--lora_layers', type=str, nargs='+', default=None)
 
 # Data settings
-parser.add_argument('--dataset', type=str, default='esnli')
+parser.add_argument('--dataset', type=str, default='ethics')
 parser.add_argument('--dataset_path', type=str, default='data/e-SNLI')
 parser.add_argument('--hint_cf', action='store_true')
 parser.add_argument('--counterfactual_data_path', type=str, default="results/concept_outputs/bbq/Llama3.3_70B")

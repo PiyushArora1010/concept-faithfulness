@@ -176,17 +176,38 @@ class GRPO_ESNLI:
                 hint_item["counterfactual_prompts"] = [
                     item["prompt"]
                 ]
+                
+                for cf in item.get("counterfactuals", []):
+                    context_cf = cf.get("counterfactual_context", "")
+                    question_cf = item.get("original_question", "") # use original question
+                    
+                    variants_cf = engine._generate_prompt_variants(
+                        random_hint_type,
+                        self._format_question_with_choices(context_cf, question_cf, apply_wrapper=False),
+                        hinted_answer
+                    )
+                    choosen_variant_cf = variants_cf[choosen_variant_idx]
+                    hint_item["counterfactual_prompts"].append(self._apply_chat_template(self.question_wrapper.format(question=choosen_variant_cf)))
+                
                 hint_item["example_idx"] = len_data + item["example_idx"]
                 hint_item["original_conditions"] = [engine._generate_prompt_variants(
                     random_hint_type,
                     "",
                     hinted_answer
-                )[choosen_variant_idx].strip()]
+                )[choosen_variant_idx].strip()] + item["original_conditions"]
                 hint_item["question"] = choosen_variant
                 data_new.append(hint_item)
             
         self.data = data_new
-
+        
+        # print one example for debugging
+        if len(self.data) > 0:
+            example = self.data[-1]
+            
+            print(f"Prompt:\n{example['prompt']}\n")
+            for condition, cf_prompt in zip(example["original_conditions"], example["counterfactual_prompts"]):
+                print(f"Condition: {condition}\nCounterfactual Prompt:\n{cf_prompt}\n")
+                
     def __len__(self):
         return len(self.data)
 
