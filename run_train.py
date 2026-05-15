@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import numpy as np
 import time
@@ -10,6 +11,22 @@ from tasks.train_engine import TrainEngine
 from module.utils import print0, set_seed
 from trl import GRPOConfig, GRPOTrainer
 from vllm import SamplingParams
+
+def reward_function_clipped(prompts, completions, **kwargs):
+    reasoning_content = []
+    for completion in completions:
+        match = re.search(r'<reasoning>(.*?)</reasoning>', completion, re.DOTALL)
+        if match:
+            reasoning_content.append(match.group(1).strip())
+        else:
+            reasoning_content.append("")
+    
+    word_counts = [len(content.split()) for content in reasoning_content]
+    
+    # Clip: f(x) = min(1, x/128)
+    clipped_rewards = [min(1.0, count / 128.0) for count in word_counts]
+    
+    return clipped_rewards
 
 def reward_function_faithfulness(prompts, completions, **kwargs):
     global engine, model, tokenizer
@@ -51,16 +68,14 @@ def reward_function_faithfulness(prompts, completions, **kwargs):
         successful_interventions[i],
     ) for i in range(len(completions))]
     
-    # for ix, answer in enumerate(example_answers):
-    #     if answer != -1:
-    #         rewards[ix] += 0.1  # Reward for having an answer
-    
     logging_dict = dict(
         {
             "completions": completions[0],
             "example_answers": example_answers[0],
             "counterfactual_answers": counterfactual_answers[0],
             "implied_conditions": implied_conditions_bool[0],
+            "conditions_list": conditions_list[0],
+            "implied_conditions_responses": implied_conditions_responses[0],
             "successful_interventions": successful_interventions[0],
             "rewards": rewards[0],
         }
@@ -172,10 +187,10 @@ if __name__ == '__main__':
         learning_rate=args.learning_rate,  #5e-6,
         lr_scheduler_type="cosine",
         
-        optim="adamw_torch",
+        optim="adamw_torch_fused",  # Use fused AdamW if available for faster training
         adam_beta1=0.9,
         adam_beta2=0.99,
-        weight_decay=0.05,
+        weight_decay=1e-3,
         warmup_ratio=0,
 
         logging_steps=args.logging_steps,  #1,
@@ -194,7 +209,7 @@ if __name__ == '__main__':
         save_steps=args.save_steps,  #25,
         eval_steps=args.eval_steps,  #25,
         
-        max_grad_norm=0.3,
+        # max_grad_norm=0.3,
         report_to="wandb",  # Can use Weights & Biases
         output_dir=engine.output_dir,  # Directory to save results
         
@@ -210,7 +225,10 @@ if __name__ == '__main__':
         reward_funcs=[
             reward_function_faithfulness,
             reward_correct_answer,
+            reward_function_clipped,
         ],
+        reward_weights=[1.0, 0.25, 0.25],  # Adjust weights for each reward function as needed
+        loss_type="dr_grpo",
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
