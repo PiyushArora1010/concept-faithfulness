@@ -12,7 +12,7 @@ class Engine:
             setattr(self, key, value)
         set_seed(self.seed)
         self.dataset_tag = self.dataset
-        self._get_dataset()
+        # self._get_dataset()
         
         self.train_hint_types = [
             "answer_key",
