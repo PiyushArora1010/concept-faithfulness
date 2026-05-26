@@ -13,18 +13,22 @@ from trl import GRPOConfig, GRPOTrainer
 from vllm import SamplingParams
 
 def reward_function_clipped(prompts, completions, **kwargs):
-    reasoning_content = []
+    
+    # check if <answer></answer> is present + <reasoning></reasoning> is present + clipped reward based on reasoning length (up to 64 words)
+    
+    clipped_rewards = []
     for completion in completions:
-        match = re.search(r'<reasoning>(.*?)</reasoning>', completion, re.DOTALL)
-        if match:
-            reasoning_content.append(match.group(1).strip())
+        has_answer = bool(re.search(r'<answer>.*?</answer>', completion, re.DOTALL))
+        has_reasoning = bool(re.search(r'<reasoning>.*?</reasoning>', completion, re.DOTALL))
+        
+        if has_answer and has_reasoning:
+            reasoning_match = re.search(r'<reasoning>(.*?)</reasoning>', completion, re.DOTALL)
+            reasoning_content = reasoning_match.group(1).strip() if reasoning_match else ""
+            word_count = len(reasoning_content.split())
+            clipped_reward = min(1.0, word_count / 64.0)  # Clip based on reasoning length
+            clipped_rewards.append(clipped_reward)
         else:
-            reasoning_content.append("")
-    
-    word_counts = [len(content.split()) for content in reasoning_content]
-    
-    # Clip: f(x) = min(1, x/128)
-    clipped_rewards = [min(1.0, count / 128.0) for count in word_counts]
+            clipped_rewards.append(0.0)  # No answer or reasoning, assign 0 reward
     
     return clipped_rewards
 
@@ -39,7 +43,7 @@ def reward_function_faithfulness(prompts, completions, **kwargs):
     # Get only unique counterfactual prompts
     counterfactual_prompts = [counterfactual_prompts[i] for i in range(0, len(completions), engine.completions_per_prompt)]
     counterfactual_answers = engine._get_counterfactual_answers(
-        model, counterfactual_prompts
+        model, tokenizer, counterfactual_prompts
     ) 
     counterfactual_answers = [ans for ans in counterfactual_answers for _ in range(engine.completions_per_prompt)] # repeat answers per completion
 
@@ -62,11 +66,25 @@ def reward_function_faithfulness(prompts, completions, **kwargs):
         original_questions,
     )
 
-    # Faithfulness reward computation
-    rewards = [engine._reward_faithfulness_response(
-        implied_conditions_bool[i],
-        successful_interventions[i],
-    ) for i in range(len(completions))]
+    rewards = []
+    counts_rewards = {}
+    for i in range(len(completions)):
+        for implied, intervention in zip(implied_conditions_bool[i], successful_interventions[i]):
+            if implied == -1 or intervention == -1:
+                rewards.append(0.0)  # No implied condition or intervention found, assign 0 reward
+                counts_rewards["invalid"] = counts_rewards.get("invalid", 0) + 1
+            elif implied == 0 and intervention == 0:
+                rewards.append(1.0)  # Implied condition found but no successful intervention, assign partial reward
+                counts_rewards["00"] = counts_rewards.get("00", 0) + 1
+            elif implied == 1 and intervention == 1:
+                rewards.append(1.0)  # Both implied condition and successful intervention found, assign full reward
+                counts_rewards["11"] = counts_rewards.get("11", 0) + 1
+            elif intervention == 1 and implied == 0:
+                counts_rewards["10"] = counts_rewards.get("10", 0) + 1
+                rewards.append(0.0)  # No implied condition and no successful intervention, assign 0 reward
+            else:
+                counts_rewards["01"] = counts_rewards.get("01", 0) + 1
+                rewards.append(0.0)  # Other cases, assign 0 reward
     
     logging_dict = dict(
         {
@@ -78,6 +96,7 @@ def reward_function_faithfulness(prompts, completions, **kwargs):
             "implied_conditions_responses": implied_conditions_responses[0],
             "successful_interventions": successful_interventions[0],
             "rewards": rewards[0],
+            "reward_counts": counts_rewards,
         }
     )
     
@@ -122,6 +141,7 @@ parser.add_argument('--model_thinking', action='store_true')
 
 # Training settings
 parser.add_argument('--learning_rate', type=float, default=5e-6)
+parser.add_argument('--weight_decay', type=float, default=1e-3) 
 parser.add_argument('--epochs', type=int, default=2)
 parser.add_argument('--gradient_accumulation_steps', type=int, default=1)
 parser.add_argument('--completions_per_prompt', type=int, default=6)
@@ -190,21 +210,23 @@ if __name__ == '__main__':
         optim="adamw_torch_fused",  # Use fused AdamW if available for faster training
         adam_beta1=0.9,
         adam_beta2=0.99,
-        weight_decay=1e-3,
+        weight_decay=args.weight_decay,  #1e-3,
         warmup_ratio=0,
 
         logging_steps=args.logging_steps,  #1,
         
         temperature=args.model_temperature,  #0.7,
         
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
+        per_device_train_batch_size=args.model_batch_size,  #8,
+        per_device_eval_batch_size=args.model_batch_size,  #8,
+        
         eval_accumulation_steps = args.gradient_accumulation_steps,
         gradient_accumulation_steps=args.gradient_accumulation_steps,  # Increase to 4 for smoother training
         num_generations=args.completions_per_prompt,  # Decrease if out of memory
         max_prompt_length=max_prompt_length,
         max_completion_length=max_seq_length - max_prompt_length,
         
+        eval_strategy="steps",
         num_train_epochs=args.epochs,  #2,
         save_steps=args.save_steps,  #25,
         eval_steps=args.eval_steps,  #25,
@@ -228,7 +250,7 @@ if __name__ == '__main__':
             reward_function_clipped,
         ],
         reward_weights=[1.0, 0.25, 0.25],  # Adjust weights for each reward function as needed
-        loss_type="dr_grpo",
+        loss_type="dapo",
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,

@@ -158,7 +158,7 @@ class GRPO_ETHICS:
             item["counterfactual_prompts"] = cf_prompts
             item["original_conditions"] = original_conditions
             
-            data_new.append(item)
+            # data_new.append(item)
             
             if engine is not None and engine.hint_cf:
                 hint_item = {}
@@ -178,24 +178,24 @@ class GRPO_ETHICS:
                     item["prompt"]
                 ]
                 
-                for cf in item.get("counterfactuals", []):
-                    context_cf = cf.get("counterfactual_context", "")
-                    question_cf = item.get("original_question", "") # use original question
+                # for cf in item.get("counterfactuals", []):
+                #     context_cf = cf.get("counterfactual_context", "")
+                #     question_cf = item.get("original_question", "") # use original question
                     
-                    variants_cf = engine._generate_prompt_variants(
-                        random_hint_type,
-                        self._format_question_with_choices(context_cf, question_cf, apply_wrapper=False),
-                        hinted_answer
-                    )
-                    choosen_variant_cf = variants_cf[choosen_variant_idx]
-                    hint_item["counterfactual_prompts"].append(self._apply_chat_template(self.question_wrapper.format(question=choosen_variant_cf)))
+                #     variants_cf = engine._generate_prompt_variants(
+                #         random_hint_type,
+                #         self._format_question_with_choices(context_cf, question_cf, apply_wrapper=False),
+                #         hinted_answer
+                #     )
+                #     choosen_variant_cf = variants_cf[choosen_variant_idx]
+                #     hint_item["counterfactual_prompts"].append(self._apply_chat_template(self.question_wrapper.format(question=choosen_variant_cf)))
                 
-                hint_item["example_idx"] = len_data + item["example_idx"]
+                hint_item["example_idx"] = item["example_idx"]
                 hint_item["original_conditions"] = [engine._generate_prompt_variants(
                     random_hint_type,
                     "",
                     hinted_answer
-                )[choosen_variant_idx].strip()] + item["original_conditions"]
+                )[choosen_variant_idx].strip()] # + item["original_conditions"]
                 hint_item["question"] = choosen_variant
                 data_new.append(hint_item)
             

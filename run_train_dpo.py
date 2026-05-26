@@ -18,12 +18,14 @@ parser.add_argument('--implied_model_thinking', action='store_true')
 parser.add_argument('--implied_model_url', type=str, default="http://localhost:3316/v1")
 parser.add_argument('--implied_model_tag', type=str, default="Qwen/Qwen3-4B")
 parser.add_argument('--implied_model_max_tokens', type=int, default=2048)
+parser.add_argument('--judge_gpus', type=str, nargs='+', default=["0"])
 
 # Model settings
 parser.add_argument('--model_tag', type=str, default='unsloth/Qwen3-4B')
 parser.add_argument('--model_max_tokens', type=int, default=2048)
 parser.add_argument('--model_temperature', type=float, default=1)
 parser.add_argument('--model_batch_size', type=int, default=8)
+parser.add_argument('--generate_batch_size', type=int, default=32)
 parser.add_argument('--model_thinking', action='store_true')
 
 # Training settings
